@@ -1,0 +1,722 @@
+{
+  "(1, 0.0, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 112.2,
+      "avg_questions": 0.0,
+      "avg_regret": 0.0
+    },
+    "never_ask": {
+      "success_rate": 0.75,
+      "avg_steps": 54.0,
+      "avg_questions": 0.0,
+      "avg_regret": 0.25
+    },
+    "always_ask": {
+      "success_rate": 0.4,
+      "avg_steps": 122.45,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    }
+  },
+  "(1, 0.0, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.4,
+      "avg_steps": 122.15,
+      "avg_questions": 0.0,
+      "avg_regret": 0.1
+    },
+    "never_ask": {
+      "success_rate": 0.65,
+      "avg_steps": 72.9,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    },
+    "always_ask": {
+      "success_rate": 0.45,
+      "avg_steps": 112.9,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    }
+  },
+  "(1, 0.0, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 111.7,
+      "avg_questions": 0.0,
+      "avg_regret": 0.1
+    },
+    "never_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 132.0,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    },
+    "always_ask": {
+      "success_rate": 0.25,
+      "avg_steps": 151.05,
+      "avg_questions": 0.0,
+      "avg_regret": 0.1
+    }
+  },
+  "(1, 0.05, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 112.1,
+      "avg_questions": 0.0,
+      "avg_regret": 0.05
+    },
+    "never_ask": {
+      "success_rate": 0.55,
+      "avg_steps": 92.4,
+      "avg_questions": 0.0,
+      "avg_regret": 0.1
+    },
+    "always_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 132.1,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    }
+  },
+  "(1, 0.05, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.4,
+      "avg_steps": 122.05,
+      "avg_questions": 0.0,
+      "avg_regret": 0.1
+    },
+    "never_ask": {
+      "success_rate": 0.45,
+      "avg_steps": 111.95,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    },
+    "always_ask": {
+      "success_rate": 0.5,
+      "avg_steps": 102.6,
+      "avg_questions": 0.0,
+      "avg_regret": 0.1
+    }
+  },
+  "(1, 0.05, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.55,
+      "avg_steps": 92.55,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    },
+    "never_ask": {
+      "success_rate": 0.5,
+      "avg_steps": 102.75,
+      "avg_questions": 0.0,
+      "avg_regret": 0.25
+    },
+    "always_ask": {
+      "success_rate": 0.25,
+      "avg_steps": 151.15,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    }
+  },
+  "(1, 0.1, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.4,
+      "avg_steps": 122.15,
+      "avg_questions": 0.0,
+      "avg_regret": 0.1
+    },
+    "never_ask": {
+      "success_rate": 0.65,
+      "avg_steps": 72.9,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    },
+    "always_ask": {
+      "success_rate": 0.45,
+      "avg_steps": 112.9,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    }
+  },
+  "(1, 0.1, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.4,
+      "avg_steps": 122.05,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    },
+    "never_ask": {
+      "success_rate": 0.45,
+      "avg_steps": 112.2,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    },
+    "always_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 131.7,
+      "avg_questions": 0.0,
+      "avg_regret": 0.1
+    }
+  },
+  "(1, 0.1, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.55,
+      "avg_steps": 92.9,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    },
+    "never_ask": {
+      "success_rate": 0.4,
+      "avg_steps": 122.6,
+      "avg_questions": 0.0,
+      "avg_regret": 0.35
+    },
+    "always_ask": {
+      "success_rate": 0.4,
+      "avg_steps": 121.95,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    }
+  },
+  "(2, 0.0, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 111.95,
+      "avg_questions": 0.0,
+      "avg_regret": 0.1
+    },
+    "never_ask": {
+      "success_rate": 0.55,
+      "avg_steps": 93.25,
+      "avg_questions": 0.0,
+      "avg_regret": 0.3
+    },
+    "always_ask": {
+      "success_rate": 0.55,
+      "avg_steps": 94.6,
+      "avg_questions": 3.0,
+      "avg_regret": 1.9
+    }
+  },
+  "(2, 0.0, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 112.25,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    },
+    "never_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 132.65,
+      "avg_questions": 0.0,
+      "avg_regret": 0.45
+    },
+    "always_ask": {
+      "success_rate": 0.6,
+      "avg_steps": 85.15,
+      "avg_questions": 3.0,
+      "avg_regret": 2.15
+    }
+  },
+  "(2, 0.0, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 111.95,
+      "avg_questions": 0.0,
+      "avg_regret": 0.25
+    },
+    "never_ask": {
+      "success_rate": 0.4,
+      "avg_steps": 122.05,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    },
+    "always_ask": {
+      "success_rate": 0.2,
+      "avg_steps": 161.3,
+      "avg_questions": 3.0,
+      "avg_regret": 0.65
+    }
+  },
+  "(2, 0.05, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.5,
+      "avg_steps": 102.5,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    },
+    "never_ask": {
+      "success_rate": 0.4,
+      "avg_steps": 122.7,
+      "avg_questions": 0.0,
+      "avg_regret": 0.4
+    },
+    "always_ask": {
+      "success_rate": 0.55,
+      "avg_steps": 94.7,
+      "avg_questions": 3.0,
+      "avg_regret": 1.95
+    }
+  },
+  "(2, 0.05, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 111.9,
+      "avg_questions": 0.0,
+      "avg_regret": 0.1
+    },
+    "never_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 132.6,
+      "avg_questions": 0.0,
+      "avg_regret": 0.55
+    },
+    "always_ask": {
+      "success_rate": 0.4,
+      "avg_steps": 123.6,
+      "avg_questions": 3.0,
+      "avg_regret": 1.5
+    }
+  },
+  "(2, 0.05, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 112.25,
+      "avg_questions": 0.0,
+      "avg_regret": 0.35
+    },
+    "never_ask": {
+      "success_rate": 0.55,
+      "avg_steps": 92.65,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    },
+    "always_ask": {
+      "success_rate": 0.3,
+      "avg_steps": 142.2,
+      "avg_questions": 3.0,
+      "avg_regret": 0.95
+    }
+  },
+  "(2, 0.1, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 112.3,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    },
+    "never_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 132.6,
+      "avg_questions": 0.0,
+      "avg_regret": 0.4
+    },
+    "always_ask": {
+      "success_rate": 0.65,
+      "avg_steps": 76.4,
+      "avg_questions": 3.0,
+      "avg_regret": -6.6
+    }
+  },
+  "(2, 0.1, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.4,
+      "avg_steps": 122.0,
+      "avg_questions": 0.0,
+      "avg_regret": 0.25
+    },
+    "never_ask": {
+      "success_rate": 0.25,
+      "avg_steps": 151.6,
+      "avg_questions": 0.0,
+      "avg_regret": 0.4
+    },
+    "always_ask": {
+      "success_rate": 0.3,
+      "avg_steps": 142.25,
+      "avg_questions": 3.0,
+      "avg_regret": 1.05
+    }
+  },
+  "(2, 0.1, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.55,
+      "avg_steps": 92.5,
+      "avg_questions": 0.0,
+      "avg_regret": 0.25
+    },
+    "never_ask": {
+      "success_rate": 0.6,
+      "avg_steps": 83.05,
+      "avg_questions": 0.0,
+      "avg_regret": 0.25
+    },
+    "always_ask": {
+      "success_rate": 0.45,
+      "avg_steps": 114.05,
+      "avg_questions": 3.0,
+      "avg_regret": 1.45
+    }
+  },
+  "(3, 0.0, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.4,
+      "avg_steps": 122.2,
+      "avg_questions": 0.0,
+      "avg_regret": 0.3
+    },
+    "never_ask": {
+      "success_rate": 0.3,
+      "avg_steps": 142.5,
+      "avg_questions": 0.0,
+      "avg_regret": -9.05
+    },
+    "always_ask": {
+      "success_rate": 0.7,
+      "avg_steps": 66.95,
+      "avg_questions": 3.0,
+      "avg_regret": 3.75
+    }
+  },
+  "(3, 0.0, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 112.4,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    },
+    "never_ask": {
+      "success_rate": 0.6,
+      "avg_steps": 83.6,
+      "avg_questions": 0.0,
+      "avg_regret": -9.0
+    },
+    "always_ask": {
+      "success_rate": 0.65,
+      "avg_steps": 75.8,
+      "avg_questions": 3.0,
+      "avg_regret": 2.65
+    }
+  },
+  "(3, 0.0, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.65,
+      "avg_steps": 73.8,
+      "avg_questions": 0.0,
+      "avg_regret": 0.45
+    },
+    "never_ask": {
+      "success_rate": 0.3,
+      "avg_steps": 141.45,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    },
+    "always_ask": {
+      "success_rate": 0.6,
+      "avg_steps": 84.8,
+      "avg_questions": 3.0,
+      "avg_regret": 2.15
+    }
+  },
+  "(3, 0.05, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.35,
+      "avg_steps": 131.85,
+      "avg_questions": 0.0,
+      "avg_regret": 0.3
+    },
+    "never_ask": {
+      "success_rate": 0.5,
+      "avg_steps": 103.9,
+      "avg_questions": 0.0,
+      "avg_regret": -18.3
+    },
+    "always_ask": {
+      "success_rate": 0.7,
+      "avg_steps": 67.25,
+      "avg_questions": 3.0,
+      "avg_regret": 3.95
+    }
+  },
+  "(3, 0.05, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.5,
+      "avg_steps": 103.25,
+      "avg_questions": 0.0,
+      "avg_regret": 0.5
+    },
+    "never_ask": {
+      "success_rate": 0.5,
+      "avg_steps": 102.6,
+      "avg_questions": 0.0,
+      "avg_regret": 0.55
+    },
+    "always_ask": {
+      "success_rate": 0.5,
+      "avg_steps": 104.6,
+      "avg_questions": 3.0,
+      "avg_regret": 2.1
+    }
+  },
+  "(3, 0.05, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.65,
+      "avg_steps": 73.35,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    },
+    "never_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 131.8,
+      "avg_questions": 0.0,
+      "avg_regret": 0.4
+    },
+    "always_ask": {
+      "success_rate": 0.6,
+      "avg_steps": 84.85,
+      "avg_questions": 3.0,
+      "avg_regret": -7.45
+    }
+  },
+  "(3, 0.1, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 112.9,
+      "avg_questions": 0.0,
+      "avg_regret": 0.65
+    },
+    "never_ask": {
+      "success_rate": 0.7,
+      "avg_steps": 65.25,
+      "avg_questions": 0.0,
+      "avg_regret": -27.35
+    },
+    "always_ask": {
+      "success_rate": 0.65,
+      "avg_steps": 76.5,
+      "avg_questions": 3.0,
+      "avg_regret": 3.35
+    }
+  },
+  "(3, 0.1, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 113.1,
+      "avg_questions": 0.0,
+      "avg_regret": 0.45
+    },
+    "never_ask": {
+      "success_rate": 0.45,
+      "avg_steps": 111.95,
+      "avg_questions": 0.0,
+      "avg_regret": 0.4
+    },
+    "always_ask": {
+      "success_rate": 0.5,
+      "avg_steps": 104.65,
+      "avg_questions": 3.0,
+      "avg_regret": 2.2
+    }
+  },
+  "(3, 0.1, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.8,
+      "avg_steps": 44.45,
+      "avg_questions": 0.0,
+      "avg_regret": 0.55
+    },
+    "never_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 132.2,
+      "avg_questions": 0.0,
+      "avg_regret": 0.65
+    },
+    "always_ask": {
+      "success_rate": 0.5,
+      "avg_steps": 103.75,
+      "avg_questions": 3.0,
+      "avg_regret": -8.0
+    }
+  },
+  "(4, 0.0, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.55,
+      "avg_steps": 93.25,
+      "avg_questions": 0.0,
+      "avg_regret": 10.5
+    },
+    "never_ask": {
+      "success_rate": 0.5,
+      "avg_steps": 103.05,
+      "avg_questions": 0.0,
+      "avg_regret": 0.6
+    },
+    "always_ask": {
+      "success_rate": 0.3,
+      "avg_steps": 142.9,
+      "avg_questions": 3.0,
+      "avg_regret": 1.15
+    }
+  },
+  "(4, 0.0, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.6,
+      "avg_steps": 84.0,
+      "avg_questions": 0.0,
+      "avg_regret": -9.0
+    },
+    "never_ask": {
+      "success_rate": 0.6,
+      "avg_steps": 82.6,
+      "avg_questions": 0.0,
+      "avg_regret": 0.15
+    },
+    "always_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 133.35,
+      "avg_questions": 3.0,
+      "avg_regret": 1.25
+    }
+  },
+  "(4, 0.0, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.35,
+      "avg_steps": 131.95,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    },
+    "never_ask": {
+      "success_rate": 0.25,
+      "avg_steps": 151.5,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    },
+    "always_ask": {
+      "success_rate": 0.4,
+      "avg_steps": 123.55,
+      "avg_questions": 3.0,
+      "avg_regret": 1.5
+    }
+  },
+  "(4, 0.05, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.65,
+      "avg_steps": 74.7,
+      "avg_questions": 0.0,
+      "avg_regret": -8.05
+    },
+    "never_ask": {
+      "success_rate": 0.55,
+      "avg_steps": 93.35,
+      "avg_questions": 0.0,
+      "avg_regret": 0.85
+    },
+    "always_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 134.25,
+      "avg_questions": 3.0,
+      "avg_regret": 2.0
+    }
+  },
+  "(4, 0.05, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.55,
+      "avg_steps": 93.45,
+      "avg_questions": 0.0,
+      "avg_regret": -9.45
+    },
+    "never_ask": {
+      "success_rate": 0.45,
+      "avg_steps": 112.25,
+      "avg_questions": 0.0,
+      "avg_regret": 0.35
+    },
+    "always_ask": {
+      "success_rate": 0.5,
+      "avg_steps": 104.95,
+      "avg_questions": 3.0,
+      "avg_regret": 1.95
+    }
+  },
+  "(4, 0.05, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.4,
+      "avg_steps": 122.05,
+      "avg_questions": 0.0,
+      "avg_regret": 0.2
+    },
+    "never_ask": {
+      "success_rate": 0.4,
+      "avg_steps": 122.2,
+      "avg_questions": 0.0,
+      "avg_regret": 0.35
+    },
+    "always_ask": {
+      "success_rate": 0.45,
+      "avg_steps": 113.65,
+      "avg_questions": 3.0,
+      "avg_regret": 1.45
+    }
+  },
+  "(4, 0.1, 1.0)": {
+    "ask_or_act": {
+      "success_rate": 0.65,
+      "avg_steps": 76.75,
+      "avg_questions": 0.0,
+      "avg_regret": -16.25
+    },
+    "never_ask": {
+      "success_rate": 0.6,
+      "avg_steps": 83.55,
+      "avg_questions": 0.0,
+      "avg_regret": 1.1
+    },
+    "always_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 134.1,
+      "avg_questions": 3.0,
+      "avg_regret": 2.0
+    }
+  },
+  "(4, 0.1, 2.0)": {
+    "ask_or_act": {
+      "success_rate": 0.55,
+      "avg_steps": 93.35,
+      "avg_questions": 0.0,
+      "avg_regret": -9.5
+    },
+    "never_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 132.45,
+      "avg_questions": 0.0,
+      "avg_regret": 0.7
+    },
+    "always_ask": {
+      "success_rate": 0.5,
+      "avg_steps": 104.65,
+      "avg_questions": 3.0,
+      "avg_regret": 1.85
+    }
+  },
+  "(4, 0.1, 4.0)": {
+    "ask_or_act": {
+      "success_rate": 0.45,
+      "avg_steps": 112.65,
+      "avg_questions": 0.0,
+      "avg_regret": 0.25
+    },
+    "never_ask": {
+      "success_rate": 0.4,
+      "avg_steps": 122.4,
+      "avg_questions": 0.0,
+      "avg_regret": 0.55
+    },
+    "always_ask": {
+      "success_rate": 0.35,
+      "avg_steps": 133.2,
+      "avg_questions": 3.0,
+      "avg_regret": 1.4
+    }
+  }
+}

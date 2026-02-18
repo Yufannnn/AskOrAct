@@ -1,0 +1,19 @@
+# Venv
+.venv/
+venv/
+env/
+
+# Results (optional; uncomment to keep CSV/plots in git)
+# results/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# IDE
+.idea/
+.vscode/
+*.swp
