@@ -1,4 +1,4 @@
-"""
+﻿"""
 Milestone Feb 13 + Feb 20: gridworld, ambiguous instructions, scripted principal,
 posterior inference, act-only assistant. No questions.
 
@@ -131,7 +131,7 @@ def write_metrics(rows, summary):
 def generate_report(rows, summary):
     """Write Markdown report to REPORT_MD."""
     lines = [
-        "# Milestone Feb 13 + Feb 20 — Results Report",
+        "# Milestone Feb 13 + Feb 20 - Results Report",
         "",
         "**Generated:** " + datetime.now().strftime("%Y-%m-%d %H:%M"),
         "",
@@ -140,7 +140,7 @@ def generate_report(rows, summary):
         "- **Feb 13:** Gridworld tasks, goal sets, ambiguous instruction templates, scripted (approximately rational) principal.",
         "- **Feb 20:** Posterior inference over goals from instruction + observed principal actions; act-only assistant (no questions).",
         "- **Policy:** Assistant always acts toward current MAP goal; posterior updated each step from principal action.",
-        "- **Conditions:** Ambiguity K ∈ {1, 2, 3, 4} (number of candidate goals matching instruction), principal noise eps ∈ {0.0, 0.05, 0.1}.",
+        "- **Conditions:** Ambiguity K in {1, 2, 3, 4} (number of candidate goals matching instruction), principal noise eps in {0.0, 0.05, 0.1}.",
         "- **Episodes per condition:** " + str(REPORT_N_EPISODES) + ".",
         "",
         "---",
@@ -250,3 +250,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

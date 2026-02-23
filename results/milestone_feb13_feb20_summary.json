@@ -1,73 +1,73 @@
 {
   "(1, 0.0)": {
     "success_rate": 1.0,
-    "avg_steps": 12.066666666666666,
+    "avg_steps": 6.933333333333334,
     "map_correct_rate": 1.0,
     "n_episodes": 15
   },
   "(1, 0.05)": {
     "success_rate": 1.0,
-    "avg_steps": 13.666666666666666,
+    "avg_steps": 7.4,
     "map_correct_rate": 1.0,
     "n_episodes": 15
   },
   "(1, 0.1)": {
     "success_rate": 1.0,
-    "avg_steps": 15.266666666666667,
+    "avg_steps": 7.6,
     "map_correct_rate": 1.0,
     "n_episodes": 15
   },
   "(2, 0.0)": {
     "success_rate": 1.0,
-    "avg_steps": 8.866666666666667,
+    "avg_steps": 7.6,
     "map_correct_rate": 1.0,
     "n_episodes": 15
   },
   "(2, 0.05)": {
     "success_rate": 1.0,
-    "avg_steps": 8.533333333333333,
+    "avg_steps": 6.8,
     "map_correct_rate": 1.0,
     "n_episodes": 15
   },
   "(2, 0.1)": {
     "success_rate": 1.0,
-    "avg_steps": 8.733333333333333,
-    "map_correct_rate": 1.0,
+    "avg_steps": 7.266666666666667,
+    "map_correct_rate": 0.9333333333333333,
     "n_episodes": 15
   },
   "(3, 0.0)": {
     "success_rate": 1.0,
-    "avg_steps": 8.266666666666667,
+    "avg_steps": 10.333333333333334,
     "map_correct_rate": 1.0,
     "n_episodes": 15
   },
   "(3, 0.05)": {
     "success_rate": 1.0,
-    "avg_steps": 10.866666666666667,
+    "avg_steps": 9.866666666666667,
     "map_correct_rate": 1.0,
     "n_episodes": 15
   },
   "(3, 0.1)": {
     "success_rate": 1.0,
-    "avg_steps": 13.533333333333333,
-    "map_correct_rate": 1.0,
+    "avg_steps": 9.6,
+    "map_correct_rate": 0.8666666666666667,
     "n_episodes": 15
   },
   "(4, 0.0)": {
     "success_rate": 1.0,
-    "avg_steps": 9.933333333333334,
-    "map_correct_rate": 0.9333333333333333,
+    "avg_steps": 10.4,
+    "map_correct_rate": 1.0,
     "n_episodes": 15
   },
   "(4, 0.05)": {
     "success_rate": 1.0,
-    "avg_steps": 10.533333333333333,
-    "map_correct_rate": 0.9333333333333333,
+    "avg_steps": 9.333333333333334,
+    "map_correct_rate": 1.0,
     "n_episodes": 15
   },
   "(4, 0.1)": {
     "success_rate": 1.0,
-    "avg_steps": 12.866666666666667,
+    "avg_steps": 9.266666666666667,
     "map_correct_rate": 1.0,
     "n_episodes": 15
   }

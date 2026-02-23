@@ -1,95 +1,58 @@
 # Ask or Act for Cooperative Assistance via Inverse Planning
 
-CS6208 course project: a small cooperative decision-making system where an assistant decides when to **ask** a clarifying question vs **act** immediately to help a principal complete a hidden goal under ambiguity.
+CS6208 project: a cooperative assistant that decides when to ask a clarifying question versus acting immediately to help a principal with a hidden goal under instruction ambiguity.
 
 ## Constraints
+- No LLMs, embeddings, or heavy NLP.
+- Language is a controlled discrete channel (templated instruction -> candidate goals).
+- Standard Python stack (`numpy`, `matplotlib`); config is code-based.
 
-- No LLMs, embeddings, or heavy NLP. Language is a controlled discrete channel (short instruction templates → candidate goals).
-- Standard Python + numpy + matplotlib (tqdm optional). Hardcoded config in code; no CLI args.
-
-## Setup
-
-**Windows:** Run **`setup.bat`** once (creates `.venv`, installs deps). Then **`run_demo.bat`** or **`run_report.bat`** (they call `setup.bat` if `.venv` is missing).
-
-**Or** with Python on PATH: `pip install -r requirements.txt`, then run scripts with `python scripts/...`.
-
-Optional GPU (e.g. laptop with GTX 4060): install CuPy for your CUDA version, then enable with:
-
+## Quick Start (Linux/macOS)
 ```bash
-set ASKORACT_USE_GPU=1
-python scripts/run_sweep.py
+chmod +x run.sh
+./run.sh setup
+./run.sh quick-demo
+./run.sh sweep
+./run.sh ablations
+./run.sh report
+./run.sh package
 ```
 
-(On Linux/macOS use `export ASKORACT_USE_GPU=1`.) The core loop stays on CPU; the backend is ready for GPU-accelerated batch ops if you add them later.
+## Core Scripts
+- `run.sh`: unified task runner for setup/demo/sweep/report/package.
+- `scripts/quick_demo.py`: single episode demo with ASCII render.
+- `scripts/run_sweep.py`: full policy sweep; writes `results/metrics.csv`.
+- `scripts/run_ablations.py`: fixed ablation sweep; writes `results/metrics_ablations.csv`.
+- `scripts/generate_report.py`: rebuilds `results/full_report.md` and dashboards.
+- `scripts/package_submission.py`: creates `results/submission_package` and `results/submission_package.zip`.
 
-## Project milestones (proposal)
+## Results Artifacts
+- Main report: `results/full_report.md`
+- Main dashboard: `results/main_dashboard.png`
+- Ablation dashboard: `results/ablations_dashboard.png`
+- Main metrics: `results/metrics.csv`
+- Ablation metrics: `results/metrics_ablations.csv`
 
-| Milestone | Deliverable | Code |
-|-----------|-------------|------|
-| **Feb 13** | Gridworld tasks, goal sets, ambiguous instruction templates, scripted principal | `src/env.py`, `src/world/worldgen.py`, `src/world/instructions.py`, `src/agents/principal.py` |
-| **Feb 20** | Posterior inference from actions + instruction; act-only helper policy | `src/inference.py`, `src/agents/assistant.py` (policy_never_ask) |
+## Presentation and Submission Docs
+- Slide outline: `docs/presentation_slides.md`
+- Talk track: `docs/presentation_talk_track.md`
+- Submission checklist: `docs/submission_checklist.md`
 
-To run **only** the Feb 13 + Feb 20 stack (no questions, act-only assistant):
+## Milestone Mapping
+- Feb 13: gridworld tasks, ambiguous instruction templates, scripted principal.
+- Feb 20: posterior inference from instruction + actions, act-only helper baseline.
+- Feb 27: question set, answer model, ask-or-act expected-cost policy.
+- Mar 13 onward: sweeps, plots, robustness (replicate seeds + CI), ablations, report polish.
 
-```bash
-# Single demo (one episode, printed to console)
-python scripts/run_milestone_feb13_feb20.py
+## Reproducibility
+- Sweep uses deterministic per-episode seeds in `src/eval/run.py`.
+- Robustness uses replicate seeds in `src/config.py` (`REPL_SEEDS`).
+- Uncertainty uses bootstrap CIs in `src/eval/plots.py`.
 
-# Run experiments and generate report (metrics + Markdown report)
-python scripts/run_milestone_feb13_feb20.py --report
-```
-
-With `--report`, the script runs multiple episodes across ambiguity K ∈ {1,2,3,4} and principal noise eps ∈ {0.0, 0.05, 0.1}, writes **results/milestone_feb13_feb20_metrics.csv**, **results/milestone_feb13_feb20_summary.json**, and **results/milestone_feb13_feb20_report.md** (summary table and aggregate stats for the progress report).
-
-## Run quick demo
-
-One episode with ASCII grid printed each step (full system: includes ask-or-act and questions):
-
-```bash
-python scripts/quick_demo.py
-```
-
-## Run experiments (sweep)
-
-Evaluate policies over ambiguity K ∈ {1,2,3,4}, eps ∈ {0.0, 0.05, 0.1}, beta ∈ {1.0, 2.0, 4.0}. Writes `results/metrics.csv`, `results/summary.json`, and plots:
-
-```bash
-python scripts/run_sweep.py
-```
-
-Outputs:
-
-- **results/metrics.csv** — per-episode metrics (success, steps, questions_asked, regret)
-- **results/summary.json** — aggregated success_rate, avg_steps, avg_questions, avg_regret per condition
-- **results/regret_vs_ambiguity.png** — regret vs K
-- **results/questions_vs_ambiguity.png** — questions asked vs K
-
-To use multiple CPU cores for the sweep, set `N_WORKERS` in `src/config.py` (e.g. `N_WORKERS = 4`).
-
-## Code layout (refactored)
-
-| Path | Purpose |
-|------|--------|
-| **Config & backend** | |
-| `src/config.py` | All constants (GPU, env, principal, sweep); edit here or use env var `ASKORACT_USE_GPU` |
-| `src/backend.py` | Optional GPU backend (numpy / CuPy); `xp()`, `device()` |
-| **Env** | |
-| `src/env.py` | `GridWorldEnv`, `grid_distance`, actions, object attributes |
-| **World** | |
-| `src/world/` | World generation, instructions, questions |
-| `src/world/worldgen.py` | `generate_world(seed, N, M, ambiguity_K)` |
-| `src/world/instructions.py` | Templates, `instruction_to_candidate_goals(u, world)` |
-| `src/world/questions.py` | Question menu, `answer_question`, `answer_likelihood` |
-| **Agents** | |
-| `src/agents/` | Principal and assistant policies |
-| `src/agents/principal.py` | `principal_action_probs`, `sample_principal_action` |
-| `src/agents/assistant.py` | AskOrAct, NeverAsk, AlwaysAsk; BFS and task action |
-| **Inference** | |
-| `src/inference.py` | `init_posterior`, `update_posterior`, `posterior_entropy` |
-| **Evaluation** | |
-| `src/eval/run.py` | `run_episode`, `run_sweep`, `oracle_steps` (optional parallel workers) |
-| `src/eval/plots.py` | `load_metrics`, `plot_regret_vs_ambiguity`, `plot_questions_vs_ambiguity` |
-| **Scripts** | |
-| `scripts/run_milestone_feb13_feb20.py` | Feb 13+20 only: gridworld, principal, posterior, act-only assistant (no questions) |
-| `scripts/quick_demo.py` | Single episode with render (full system) |
-| `scripts/run_sweep.py` | Full sweep and save results + plots |
+## Repository Layout
+- `src/env.py`: gridworld environment and step semantics.
+- `src/world/`: world generation, instructions, questions/answers.
+- `src/inference.py`: posterior initialization and updates.
+- `src/agents/assistant.py`: AskOrAct, NeverAsk, AlwaysAsk policies.
+- `src/eval/run.py`: episode logic, sweeps, ablations.
+- `src/eval/plots.py`: loading, aggregation, dashboards.

@@ -125,7 +125,7 @@ class GridWorldEnv:
     def _free_cell(self, pos):
         return 0 <= pos[0] < self.N and 0 <= pos[1] < self.N and pos not in self.walls
 
-    def step(self, principal_action, assistant_action, true_goal_obj_id=None):
+    def step(self, principal_action, assistant_action, true_goal_obj_id=None, wrong_pick_fail=None):
         """
         Apply principal then assistant action. Return (state, done, info).
         When true_goal_obj_id is provided, info includes success, assistant_picked_goal,
@@ -158,7 +158,11 @@ class GridWorldEnv:
 
         picked_obj_id = None
         assistant_picked_goal = False
+        wrong_pick = False
+        terminated_by_wrong_pick = False
         done = False
+        if wrong_pick_fail is None:
+            wrong_pick_fail = getattr(config, "WRONG_PICK_FAIL", False)
         if assistant_action == "pick":
             o = self._obj_by_pos.get(self.assistant_pos)
             if o is not None:
@@ -168,6 +172,11 @@ class GridWorldEnv:
                 if true_goal_obj_id is not None and picked_obj_id == true_goal_obj_id:
                     assistant_picked_goal = True
                     done = True
+                elif true_goal_obj_id is not None:
+                    wrong_pick = True
+                    if wrong_pick_fail:
+                        done = True
+                        terminated_by_wrong_pick = True
 
         success = assistant_picked_goal
         info = {
@@ -175,6 +184,8 @@ class GridWorldEnv:
             "success": success,
             "picked_obj_id": picked_obj_id,
             "assistant_picked_goal": assistant_picked_goal,
+            "wrong_pick": wrong_pick,
+            "terminated_by_wrong_pick": terminated_by_wrong_pick,
             "principal_on_goal_cell": principal_on_goal_cell,
         }
         return self.get_state(), done, info
