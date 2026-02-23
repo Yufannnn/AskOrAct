@@ -67,6 +67,16 @@ def load_metrics(csv_path="results/metrics.csv"):
                 row["rep_seed"] = int(row["rep_seed"])
             if "episode_id" in row:
                 row["episode_id"] = int(row["episode_id"])
+            if "entropy_before_first_ask" in row:
+                row["entropy_before_first_ask"] = float(row["entropy_before_first_ask"])
+            if "entropy_after_first_ask" in row:
+                row["entropy_after_first_ask"] = float(row["entropy_after_first_ask"])
+            if "effective_goal_count_before" in row:
+                row["effective_goal_count_before"] = float(row["effective_goal_count_before"])
+            if "effective_goal_count_after" in row:
+                row["effective_goal_count_after"] = float(row["effective_goal_count_after"])
+            if "ig_of_first_asked_question" in row:
+                row["ig_of_first_asked_question"] = float(row["ig_of_first_asked_question"])
             rows.append(row)
     return rows
 
@@ -99,8 +109,220 @@ def load_ablation_metrics(csv_path="results/metrics_ablations.csv"):
                 row["rep_seed"] = int(row["rep_seed"])
             if "episode_id" in row:
                 row["episode_id"] = int(row["episode_id"])
+            if "entropy_before_first_ask" in row:
+                row["entropy_before_first_ask"] = float(row["entropy_before_first_ask"])
+            if "entropy_after_first_ask" in row:
+                row["entropy_after_first_ask"] = float(row["entropy_after_first_ask"])
+            if "effective_goal_count_before" in row:
+                row["effective_goal_count_before"] = float(row["effective_goal_count_before"])
+            if "effective_goal_count_after" in row:
+                row["effective_goal_count_after"] = float(row["effective_goal_count_after"])
+            if "ig_of_first_asked_question" in row:
+                row["ig_of_first_asked_question"] = float(row["ig_of_first_asked_question"])
             rows.append(row)
     return rows
+
+
+def _load_robust_metrics(csv_path):
+    if not os.path.isfile(csv_path):
+        return []
+    rows = []
+    with open(csv_path, newline="") as f:
+        r = csv.DictReader(f)
+        for row in r:
+            for key in (
+                "K",
+                "rep_seed",
+                "episode_id",
+                "steps",
+                "questions_asked",
+                "episode_max_steps",
+            ):
+                if key in row and row[key] != "":
+                    row[key] = int(row[key])
+            for key in (
+                "answer_noise",
+                "principal_eps",
+                "assistant_eps",
+                "principal_beta",
+                "assistant_beta",
+                "regret",
+                "entropy_before_first_ask",
+                "entropy_after_first_ask",
+                "effective_goal_count_before",
+                "effective_goal_count_after",
+                "ig_of_first_asked_question",
+            ):
+                if key in row and row[key] != "":
+                    row[key] = float(row[key])
+            for key in ("success", "map_correct", "failure_by_wrong_pick", "failure_by_timeout"):
+                if key in row:
+                    row[key] = _parse_bool(row[key])
+            rows.append(row)
+    return rows
+
+
+def _paired_delta(values_a, values_b, n_boot=1000, rng_seed=0):
+    """Bootstrap CI for mean(values_a - values_b), paired by index order."""
+    a = np.asarray(values_a, dtype=float)
+    b = np.asarray(values_b, dtype=float)
+    n = min(a.size, b.size)
+    if n == 0:
+        return np.nan, np.nan, np.nan
+    d = a[:n] - b[:n]
+    return bootstrap_mean_ci(d, n_boot=n_boot, rng_seed=rng_seed)
+
+
+def _paired_delta_by_key(rows, cond_key_fn, metric_fn, policy_a, policy_b):
+    """Return dict cond_key -> (mean, lo, hi, n) for paired delta (policy_a - policy_b)."""
+    out = {}
+    cond_keys = sorted(set(cond_key_fn(r) for r in rows))
+    for ck in cond_keys:
+        a_rows = [r for r in rows if cond_key_fn(r) == ck and r["policy"] == policy_a]
+        b_rows = [r for r in rows if cond_key_fn(r) == ck and r["policy"] == policy_b]
+        map_a = {
+            (r.get("rep_seed", 0), r.get("episode_id", 0)): metric_fn(r)
+            for r in a_rows
+        }
+        map_b = {
+            (r.get("rep_seed", 0), r.get("episode_id", 0)): metric_fn(r)
+            for r in b_rows
+        }
+        common = sorted(set(map_a.keys()) & set(map_b.keys()))
+        if not common:
+            out[ck] = (np.nan, np.nan, np.nan, 0)
+            continue
+        vals_a = [map_a[k] for k in common]
+        vals_b = [map_b[k] for k in common]
+        mean, lo, hi = _paired_delta(vals_a, vals_b, n_boot=1000, rng_seed=9000 + len(common))
+        out[ck] = (mean, lo, hi, len(common))
+    return out
+
+
+def plot_robust_answer_noise_deltas(
+    csv_path="results/metrics_robust_answer_noise.csv",
+    output_path="results/robust_answer_noise_deltas.png",
+):
+    """Plot DeltaSuccess and DeltaRegret vs answer_noise, split by K in {3,4}."""
+    if plt is None:
+        return
+    rows = _load_robust_metrics(csv_path)
+    if not rows:
+        print("No robustness metrics found at", csv_path)
+        return
+    ks = sorted(set(int(r["K"]) for r in rows))
+    x_vals = sorted(set(float(r["answer_noise"]) for r in rows))
+
+    def cond_key_fn(r):
+        return (int(r["K"]), float(r["answer_noise"]))
+
+    dsucc = _paired_delta_by_key(
+        rows,
+        cond_key_fn=cond_key_fn,
+        metric_fn=lambda r: 1.0 if r["success"] else 0.0,
+        policy_a="ask_or_act",
+        policy_b="never_ask",
+    )
+    dreg = _paired_delta_by_key(
+        rows,
+        cond_key_fn=cond_key_fn,
+        metric_fn=lambda r: float(r["regret"]),
+        policy_a="ask_or_act",
+        policy_b="always_ask",
+    )
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), constrained_layout=True)
+    for panel_idx, (ax, data, title, ylabel) in enumerate(
+        [
+            (axes[0], dsucc, "DeltaSuccess vs answer_noise", "DeltaSuccess (AskOrAct - NeverAsk)"),
+            (axes[1], dreg, "DeltaRegret vs answer_noise", "DeltaRegret (AskOrAct - AlwaysAsk)"),
+        ]
+    ):
+        for k_idx, K in enumerate(ks):
+            means, los, his = [], [], []
+            for x in x_vals:
+                m, lo, hi, _n = data.get((K, x), (np.nan, np.nan, np.nan, 0))
+                means.append(m)
+                los.append(lo)
+                his.append(hi)
+            means = np.asarray(means, dtype=float)
+            los = np.asarray(los, dtype=float)
+            his = np.asarray(his, dtype=float)
+            ax.plot(x_vals, means, marker="o", label=f"K={K}")
+            ax.fill_between(x_vals, los, his, alpha=0.2)
+        ax.axhline(0.0, color="gray", linewidth=1.0, alpha=0.7)
+        ax.set_xlabel("answer_noise")
+        ax.set_ylabel(ylabel)
+        ax.set_title(title + " (95% bootstrap CI)")
+        ax.legend()
+
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path)
+    plt.close(fig)
+    print("Saved", output_path)
+
+
+def plot_robust_mismatch_deltas(
+    csv_path="results/metrics_robust_mismatch.csv",
+    output_path="results/robust_mismatch_deltas.png",
+):
+    """Plot DeltaSuccess and DeltaRegret vs principal_beta mismatch, split by K in {3,4}."""
+    if plt is None:
+        return
+    rows = _load_robust_metrics(csv_path)
+    if not rows:
+        print("No robustness metrics found at", csv_path)
+        return
+    ks = sorted(set(int(r["K"]) for r in rows))
+    x_vals = sorted(set(float(r["principal_beta"]) for r in rows))
+
+    def cond_key_fn(r):
+        return (int(r["K"]), float(r["principal_beta"]))
+
+    dsucc = _paired_delta_by_key(
+        rows,
+        cond_key_fn=cond_key_fn,
+        metric_fn=lambda r: 1.0 if r["success"] else 0.0,
+        policy_a="ask_or_act",
+        policy_b="never_ask",
+    )
+    dreg = _paired_delta_by_key(
+        rows,
+        cond_key_fn=cond_key_fn,
+        metric_fn=lambda r: float(r["regret"]),
+        policy_a="ask_or_act",
+        policy_b="always_ask",
+    )
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.5), constrained_layout=True)
+    for panel_idx, (ax, data, title, ylabel) in enumerate(
+        [
+            (axes[0], dsucc, "DeltaSuccess vs principal_beta", "DeltaSuccess (AskOrAct - NeverAsk)"),
+            (axes[1], dreg, "DeltaRegret vs principal_beta", "DeltaRegret (AskOrAct - AlwaysAsk)"),
+        ]
+    ):
+        for k_idx, K in enumerate(ks):
+            means, los, his = [], [], []
+            for x in x_vals:
+                m, lo, hi, _n = data.get((K, x), (np.nan, np.nan, np.nan, 0))
+                means.append(m)
+                los.append(lo)
+                his.append(hi)
+            means = np.asarray(means, dtype=float)
+            los = np.asarray(los, dtype=float)
+            his = np.asarray(his, dtype=float)
+            ax.plot(x_vals, means, marker="o", label=f"K={K}")
+            ax.fill_between(x_vals, los, his, alpha=0.2)
+        ax.axhline(0.0, color="gray", linewidth=1.0, alpha=0.7)
+        ax.set_xlabel("principal_beta")
+        ax.set_ylabel(ylabel)
+        ax.set_title(title + " (95% bootstrap CI)")
+        ax.legend()
+
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path)
+    plt.close(fig)
+    print("Saved", output_path)
 
 
 def aggregate_by_condition(rows):
@@ -423,6 +645,357 @@ def plot_ablations_dashboard(csv_path="results/metrics_ablations.csv", output_pa
 
     handles, labels = axes[0, 0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", ncol=3, fontsize=8)
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path)
+    plt.close(fig)
+    print("Saved", output_path)
+
+
+def plot_clarification_quality_entropy_delta(
+    csv_path="results/metrics.csv",
+    output_path="results/clarification_quality_entropy_delta.png",
+):
+    """
+    Plot delta entropy (before first ask - after first ask) for K in {3,4}, by policy.
+    Policies that never ask have delta ~0 by construction.
+    """
+    if plt is None:
+        return
+    rows = load_metrics(csv_path)
+    if not rows:
+        print("No metrics found at", csv_path)
+        return
+
+    rows = [r for r in rows if r["ambiguity_K"] in (3, 4)]
+    if not rows:
+        print("No K=3/4 rows found at", csv_path)
+        return
+
+    policies = sorted(set(r["policy"] for r in rows))
+    k_vals = [3, 4]
+
+    x = np.arange(len(policies), dtype=float)
+    width = 0.35
+    offsets = {3: -width / 2.0, 4: width / 2.0}
+
+    fig, ax = plt.subplots(1, 1, figsize=(11, 5), constrained_layout=True)
+    for k in k_vals:
+        means, err_low, err_high = [], [], []
+        for pol_idx, policy in enumerate(policies):
+            vals = [
+                float(r.get("entropy_before_first_ask", 0.0)) - float(r.get("entropy_after_first_ask", 0.0))
+                for r in rows
+                if r["ambiguity_K"] == k and r["policy"] == policy
+            ]
+            mean, lo, hi = bootstrap_mean_ci(vals, n_boot=1000, rng_seed=6000 + 100 * k + pol_idx)
+            means.append(mean)
+            err_low.append(max(0.0, mean - lo))
+            err_high.append(max(0.0, hi - mean))
+        ax.bar(
+            x + offsets[k],
+            means,
+            width=width,
+            label=f"K={k}",
+            yerr=np.vstack([err_low, err_high]),
+            capsize=3,
+            alpha=0.85,
+        )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(policies, rotation=15, ha="right")
+    ax.set_ylabel("Delta entropy (before first ask - after first ask)")
+    ax.set_title("Clarification quality by policy (K=3,4; 95% bootstrap CI)")
+    ax.axhline(0.0, color="gray", linewidth=1.0, alpha=0.7)
+    ax.legend()
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path)
+    plt.close(fig)
+    print("Saved", output_path)
+
+
+def load_question_difficulty_metrics(csv_path="results/metrics_question_difficulty.csv"):
+    return _load_robust_metrics(csv_path)
+
+
+def plot_question_difficulty_dashboard(
+    csv_path="results/metrics_question_difficulty.csv",
+    output_path="results/question_difficulty_dashboard.png",
+):
+    """
+    Focused 2x2 dashboard for question-difficulty experiment on K={3,4}.
+    Panels: success, regret, questions, MAP with 95% bootstrap CI.
+    """
+    if plt is None:
+        return
+    rows = load_question_difficulty_metrics(csv_path)
+    if not rows:
+        print("No question-difficulty metrics found at", csv_path)
+        return
+
+    k_vals = sorted(set(int(r["K"]) for r in rows))
+    policies = sorted(set(r["policy"] for r in rows))
+
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8.5), constrained_layout=True)
+    panels = [
+        ("success", "Success Rate", (0, 1), lambda r: 1.0 if r["success"] else 0.0),
+        ("regret", "Average Regret", None, lambda r: float(r["regret"])),
+        ("questions_asked", "Average Questions", None, lambda r: float(r["questions_asked"])),
+        ("map_correct", "MAP Accuracy", (0, 1), lambda r: 1.0 if r.get("map_correct", False) else 0.0),
+    ]
+
+    for panel_idx, (ax, (metric_key, title, ylim, metric_fn)) in enumerate(zip(axes.flat, panels)):
+        for pol_idx, policy in enumerate(policies):
+            means, los, his = [], [], []
+            for K in k_vals:
+                vals = [metric_fn(r) for r in rows if int(r["K"]) == K and r["policy"] == policy]
+                mean, lo, hi = bootstrap_mean_ci(
+                    vals,
+                    n_boot=1000,
+                    rng_seed=13000 + panel_idx * 100 + pol_idx * 10 + int(K),
+                )
+                means.append(mean)
+                los.append(lo)
+                his.append(hi)
+            means = np.asarray(means, dtype=float)
+            los = np.asarray(los, dtype=float)
+            his = np.asarray(his, dtype=float)
+            ax.plot(k_vals, means, marker="o", label=policy)
+            ax.fill_between(k_vals, los, his, alpha=0.2)
+        ax.set_xlabel("Ambiguity K")
+        ax.set_ylabel(title)
+        ax.set_title(title + " vs K (95% bootstrap CI)")
+        if ylim is not None:
+            ax.set_ylim(*ylim)
+
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=max(1, len(labels)))
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path)
+    plt.close(fig)
+    print("Saved", output_path)
+
+
+def plot_question_difficulty_entropy_delta(
+    csv_path="results/metrics_question_difficulty.csv",
+    output_path="results/question_difficulty_entropy_delta.png",
+):
+    """
+    Clarification quality in question-difficulty experiment:
+    delta entropy = H(before first ask) - H(after first ask), by policy and K.
+    """
+    if plt is None:
+        return
+    rows = load_question_difficulty_metrics(csv_path)
+    if not rows:
+        print("No question-difficulty metrics found at", csv_path)
+        return
+
+    k_vals = sorted(set(int(r["K"]) for r in rows))
+    policies = sorted(set(r["policy"] for r in rows))
+    x = np.arange(len(policies), dtype=float)
+    width = 0.35 if len(k_vals) <= 2 else 0.24
+    offsets = np.linspace(-width * (len(k_vals) - 1) / 2, width * (len(k_vals) - 1) / 2, len(k_vals))
+
+    fig, ax = plt.subplots(1, 1, figsize=(11, 5), constrained_layout=True)
+    for idx, K in enumerate(k_vals):
+        means, err_low, err_high = [], [], []
+        for pol_idx, policy in enumerate(policies):
+            vals = [
+                float(r.get("entropy_before_first_ask", 0.0)) - float(r.get("entropy_after_first_ask", 0.0))
+                for r in rows
+                if int(r["K"]) == K and r["policy"] == policy
+            ]
+            mean, lo, hi = bootstrap_mean_ci(vals, n_boot=1000, rng_seed=14000 + idx * 100 + pol_idx)
+            means.append(mean)
+            err_low.append(max(0.0, mean - lo))
+            err_high.append(max(0.0, hi - mean))
+        ax.bar(
+            x + offsets[idx],
+            means,
+            width=width,
+            label=f"K={K}",
+            yerr=np.vstack([err_low, err_high]),
+            capsize=3,
+            alpha=0.85,
+        )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(policies, rotation=15, ha="right")
+    ax.set_ylabel("Delta entropy (before first ask - after first ask)")
+    ax.set_title("Question-difficulty clarification quality (95% bootstrap CI)")
+    ax.axhline(0.0, color="gray", linewidth=1.0, alpha=0.7)
+    ax.legend()
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path)
+    plt.close(fig)
+    print("Saved", output_path)
+
+
+def load_generalization_templates_metrics(csv_path="results/metrics_generalization_templates.csv"):
+    return _load_robust_metrics(csv_path)
+
+
+def load_scale_k_metrics(csv_path="results/metrics_scaleK.csv"):
+    return _load_robust_metrics(csv_path)
+
+
+def plot_generalization_templates(
+    csv_path="results/metrics_generalization_templates.csv",
+    output_path="results/generalization_templates_plot.png",
+):
+    """
+    Held-out template evaluation plot with CIs:
+    success/regret/questions vs K, line per policy.
+    """
+    if plt is None:
+        return
+    rows = load_generalization_templates_metrics(csv_path)
+    if not rows:
+        print("No generalization-template metrics found at", csv_path)
+        return
+
+    k_vals = sorted(set(int(r["K"]) for r in rows))
+    policies = sorted(set(r["policy"] for r in rows))
+    panels = [
+        ("success", "Success Rate", (0, 1), lambda r: 1.0 if r["success"] else 0.0),
+        ("regret", "Average Regret", None, lambda r: float(r["regret"])),
+        ("questions_asked", "Average Questions", None, lambda r: float(r["questions_asked"])),
+    ]
+
+    fig, axes = plt.subplots(1, 3, figsize=(16, 4.8), constrained_layout=True)
+    for panel_idx, (ax, (metric_name, ylabel, ylim, metric_fn)) in enumerate(zip(axes, panels)):
+        for pol_idx, policy in enumerate(policies):
+            means, los, his = [], [], []
+            for K in k_vals:
+                vals = [metric_fn(r) for r in rows if int(r["K"]) == K and r["policy"] == policy]
+                mean, lo, hi = bootstrap_mean_ci(
+                    vals, n_boot=1000, rng_seed=15000 + panel_idx * 100 + pol_idx * 10 + int(K)
+                )
+                means.append(mean)
+                los.append(lo)
+                his.append(hi)
+            means = np.asarray(means, dtype=float)
+            los = np.asarray(los, dtype=float)
+            his = np.asarray(his, dtype=float)
+            ax.plot(k_vals, means, marker="o", label=policy)
+            ax.fill_between(k_vals, los, his, alpha=0.2)
+        ax.set_xlabel("Ambiguity K")
+        ax.set_ylabel(ylabel)
+        ax.set_title(ylabel + " vs K (held-out templates)")
+        if ylim is not None:
+            ax.set_ylim(*ylim)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=max(1, len(labels)))
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path)
+    plt.close(fig)
+    print("Saved", output_path)
+
+
+def plot_scale_k(
+    csv_path="results/metrics_scaleK.csv",
+    output_path="results/scaleK_plot.png",
+):
+    """
+    Scale-K summary plot:
+      - regret vs K (up to 6)
+      - questions vs K (up to 6)
+    with 95% bootstrap CI.
+    """
+    if plt is None:
+        return
+    rows = load_scale_k_metrics(csv_path)
+    if not rows:
+        print("No scale-K metrics found at", csv_path)
+        return
+
+    k_vals = sorted(set(int(r["K"]) for r in rows))
+    policies = sorted(set(r["policy"] for r in rows))
+    panels = [
+        ("regret", "Average Regret", lambda r: float(r["regret"])),
+        ("questions_asked", "Average Questions", lambda r: float(r["questions_asked"])),
+    ]
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.8), constrained_layout=True)
+    for panel_idx, (ax, (metric_name, ylabel, metric_fn)) in enumerate(zip(axes, panels)):
+        for pol_idx, policy in enumerate(policies):
+            means, los, his = [], [], []
+            for K in k_vals:
+                vals = [metric_fn(r) for r in rows if int(r["K"]) == K and r["policy"] == policy]
+                mean, lo, hi = bootstrap_mean_ci(
+                    vals, n_boot=1000, rng_seed=16000 + panel_idx * 100 + pol_idx * 10 + int(K)
+                )
+                means.append(mean)
+                los.append(lo)
+                his.append(hi)
+            means = np.asarray(means, dtype=float)
+            los = np.asarray(los, dtype=float)
+            his = np.asarray(his, dtype=float)
+            ax.plot(k_vals, means, marker="o", label=policy)
+            ax.fill_between(k_vals, los, his, alpha=0.2)
+        ax.set_xlabel("Ambiguity K")
+        ax.set_ylabel(ylabel)
+        ax.set_title(ylabel + " vs K (eps=0.05, beta=2.0)")
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=max(1, len(labels)))
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path)
+    plt.close(fig)
+    print("Saved", output_path)
+
+
+def plot_pareto_k4(
+    csv_path="results/metrics.csv",
+    output_path="results/pareto_K4.png",
+):
+    """
+    Pareto-style view at K=4:
+      x = average questions asked
+      y = average regret
+    with bootstrap CI bars for each policy point.
+    """
+    if plt is None:
+        return
+    rows = load_metrics(csv_path)
+    if not rows:
+        print("No metrics found at", csv_path)
+        return
+    rows = [r for r in rows if int(r["ambiguity_K"]) == 4]
+    if not rows:
+        print("No K=4 rows found at", csv_path)
+        return
+
+    policies = sorted(set(r["policy"] for r in rows))
+    fig, ax = plt.subplots(1, 1, figsize=(8, 6), constrained_layout=True)
+
+    for idx, policy in enumerate(policies):
+        sub = [r for r in rows if r["policy"] == policy]
+        if not sub:
+            continue
+        q_vals = [float(r["questions_asked"]) for r in sub]
+        r_vals = [float(r["regret"]) for r in sub]
+        q_mean, q_lo, q_hi = bootstrap_mean_ci(q_vals, n_boot=1000, rng_seed=18000 + idx)
+        r_mean, r_lo, r_hi = bootstrap_mean_ci(r_vals, n_boot=1000, rng_seed=18100 + idx)
+        xerr = np.array([[max(0.0, q_mean - q_lo)], [max(0.0, q_hi - q_mean)]], dtype=float)
+        yerr = np.array([[max(0.0, r_mean - r_lo)], [max(0.0, r_hi - r_mean)]], dtype=float)
+        ax.errorbar(
+            q_mean,
+            r_mean,
+            xerr=xerr,
+            yerr=yerr,
+            fmt="o",
+            capsize=3,
+            label=policy,
+        )
+        ax.annotate(policy, (q_mean, r_mean), textcoords="offset points", xytext=(5, 4), fontsize=8)
+
+    ax.set_xlabel("Average Questions (K=4)")
+    ax.set_ylabel("Average Regret (K=4)")
+    ax.set_title("Pareto View at K=4 (95% bootstrap CI)")
+    ax.grid(alpha=0.2)
+    ax.legend(loc="best", fontsize=8)
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     fig.savefig(output_path)
     plt.close(fig)

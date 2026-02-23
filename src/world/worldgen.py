@@ -77,7 +77,7 @@ def _sample_candidate_positions(rng, free_cells, K, N, walls, doorway):
     return None
 
 
-def generate_world(seed, N=None, M=None, ambiguity_K=2):
+def generate_world(seed, N=None, M=None, ambiguity_K=2, allowed_template_ids=None):
     """Returns (env, instruction_u, true_goal_obj_id)."""
     N = N or config.DEFAULT_N
     M = M or config.DEFAULT_M
@@ -89,9 +89,17 @@ def generate_world(seed, N=None, M=None, ambiguity_K=2):
         if len(free) < M + 2:
             raise ValueError("Not enough free cells for M objects and 2 agents")
 
-        template_choices = [0, 1, 2, 3]
+        if allowed_template_ids is None:
+            template_choices = [0, 1, 2, 3]
+        else:
+            template_choices = sorted({int(t) for t in allowed_template_ids if 0 <= int(t) <= 3})
+            if not template_choices:
+                raise ValueError("allowed_template_ids produced empty template choice set")
         if K >= 2 and config.TWO_ROOMS and doorway is not None and 2 in template_choices:
             template_choices.remove(2)  # room template cannot satisfy multi-room candidate constraint for K>=2
+        if not template_choices:
+            # Fallback when constraints remove all templates for this condition.
+            template_choices = [0, 1, 3]
         template_id = int(rng.choice(template_choices))
         true_type = rng.choice(OBJ_TYPES)
         true_color = rng.choice(OBJ_COLORS)

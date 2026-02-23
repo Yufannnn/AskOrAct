@@ -1,6 +1,6 @@
 # AskOrAct - Full Evaluation Report
 
-**Generated:** 2026-02-23 23:05
+**Generated:** 2026-02-23 18:58
 
 ## Setup
 
@@ -8,7 +8,7 @@
 - **Success requires assistant to pick the true goal object.**
 - **Episode deadline:** per-episode max steps = oracle shortest assistant path + margin.
 - **Cost rule:** `team_cost = steps + QUESTION_COST * questions_asked`; failed episodes use `team_cost = episode_max_steps + QUESTION_COST * questions_asked`.
-- **Policies:** AskOrAct, NeverAsk, AlwaysAsk, InfoGainAsk, RandomAsk, POMCPPlanner.
+- **Policies:** AskOrAct, NeverAsk, AlwaysAsk, InfoGainAsk, RandomAsk.
 - **Conditions:** Ambiguity K in {1, 2, 3, 4}, eps in {0.0, 0.05, 0.1}, beta in {1.0, 2.0, 4.0}.
 - **Replicate seeds:** [0, 1, 2, 3, 4].
 - **Episodes per (policy, K, eps, beta):** 100 (5 reps x 20 eps/rep).
@@ -18,7 +18,6 @@
 
 - **info_gain_ask:** computes expected entropy reduction `IG(q)=H(b)-E[H|q]` for each question and asks `argmax_q IG(q)` when IG passes threshold (and optional entropy gate), otherwise acts toward MAP goal.
 - **random_ask:** uses the same ask gating as `info_gain_ask` but picks a random available question when asking.
-- **pomcp_planner:** POMCP/PO-UCT baseline that approximates POMDP ask-act planning with Monte Carlo tree search over physical and question actions.
 
 ---
 
@@ -217,10 +216,6 @@
 
 ![Clarification quality entropy delta](clarification_quality_entropy_delta.png)
 
-### Pareto (K=4)
-
-![Pareto K=4](pareto_K4.png)
-
 ### Ablations Dashboard
 
 ![Ablations dashboard](ablations_dashboard.png)
@@ -232,14 +227,6 @@
 ### Robustness: Principal-Model Mismatch Deltas
 
 ![Robust mismatch deltas](robust_mismatch_deltas.png)
-
-### Generalization: Held-out Templates
-
-![Held-out template generalization](generalization_templates_plot.png)
-
-### Generalization: Scale K to 6
-
-![Scale-K stress test](scaleK_plot.png)
 
 
 ---
@@ -320,12 +307,6 @@ Deltas are bootstrap-estimated on paired episode keys: (K, eps, beta, rep_seed, 
 | DeltaRegret (AskOrAct - AlwaysAsk) | -2.04 [-2.13, -1.95] | 1800 |
 | DeltaSuccess (AskOrAct - InfoGainAsk) | -3.72% [-4.94%, -2.61%] | 1800 |
 | DeltaRegret (AskOrAct - InfoGainAsk) | -0.46 [-0.53, -0.40] | 1800 |
-| DeltaSuccess (AskOrAct - EasyInfoGainAsk) | -1.50% [-5.00%, 1.50%] | 200 |
-| DeltaRegret (AskOrAct - EasyInfoGainAsk) | -0.52 [-0.70, -0.33] | 200 |
-| DeltaSuccess (AskOrAct - POMCP) | 7.50% [1.00%, 14.00%] | 200 |
-| DeltaRegret (AskOrAct - POMCP) | -1.14 [-1.46, -0.85] | 200 |
-
-IG is best at entropy reduction; VoI is best at minimizing team cost under deadlines; POMCP approximates POMDP planning and serves as a stronger baseline.
 
 ## Robustness Sweeps (K=3,4)
 
@@ -350,82 +331,6 @@ Trend: AskOrAct keeps a positive success advantage vs NeverAsk and a strong regr
 | 4.0 | 6.00% [2.50%, 9.50%] | -2.37 [-2.63, -2.10] |
 
 Trend: AskOrAct remains robust to principal rationality mismatch, preserving positive success deltas and negative regret deltas.
-
-## Held-out Template Generalization
-
-Evaluation uses only held-out instruction templates (deterministic 70/30 split over template IDs), with the same K/eps/beta grids.
-
-| K | Policy | Success [95% CI] | Regret [95% CI] | Questions [95% CI] |
-|---|---|---|---|---|
-| 1 | ask_or_act | 100.00% [100.00%, 100.00%] | 0.52 [0.47, 0.57] | 0.00 [0.00, 0.00] |
-| 1 | easy_info_gain_ask | 100.00% [100.00%, 100.00%] | 0.52 [0.47, 0.57] | 0.00 [0.00, 0.00] |
-| 1 | info_gain_ask | 100.00% [100.00%, 100.00%] | 0.52 [0.47, 0.57] | 0.00 [0.00, 0.00] |
-| 1 | random_ask | 100.00% [100.00%, 100.00%] | 0.52 [0.47, 0.57] | 0.00 [0.00, 0.00] |
-| 2 | ask_or_act | 91.56% [89.78%, 93.22%] | 1.64 [1.52, 1.75] | 0.00 [0.00, 0.00] |
-| 2 | easy_info_gain_ask | 96.89% [95.78%, 98.00%] | 2.20 [2.13, 2.26] | 1.00 [1.00, 1.00] |
-| 2 | info_gain_ask | 96.33% [95.11%, 97.56%] | 2.31 [2.24, 2.38] | 1.09 [1.08, 1.11] |
-| 2 | random_ask | 94.33% [92.89%, 95.78%] | 3.32 [3.22, 3.42] | 1.76 [1.71, 1.81] |
-| 3 | ask_or_act | 89.44% [87.33%, 91.44%] | 2.22 [2.10, 2.34] | 0.53 [0.50, 0.57] |
-| 3 | easy_info_gain_ask | 87.89% [85.89%, 89.89%] | 2.72 [2.63, 2.82] | 1.00 [1.00, 1.00] |
-| 3 | info_gain_ask | 88.89% [86.89%, 91.00%] | 3.80 [3.73, 3.88] | 1.88 [1.86, 1.91] |
-| 3 | random_ask | 86.22% [83.89%, 88.33%] | 4.79 [4.71, 4.87] | 2.63 [2.60, 2.67] |
-| 4 | ask_or_act | 83.89% [81.33%, 86.22%] | 2.55 [2.42, 2.68] | 0.60 [0.56, 0.64] |
-| 4 | easy_info_gain_ask | 82.11% [79.33%, 84.67%] | 2.97 [2.87, 3.07] | 1.00 [1.00, 1.00] |
-| 4 | info_gain_ask | 86.22% [83.78%, 88.56%] | 3.91 [3.83, 3.98] | 1.96 [1.95, 1.97] |
-| 4 | random_ask | 82.22% [79.56%, 84.56%] | 4.82 [4.74, 4.90] | 2.65 [2.61, 2.68] |
-
-Summary: performance degrades gracefully under unseen templates, with no catastrophic collapse in success or regret trends.
-
-## Scale-K Stress Test (K up to 6)
-
-Evaluation fixes `eps=0.05` and `beta=2.0`, extending ambiguity to `K=5,6`.
-
-| K | Policy | Success [95% CI] | Regret [95% CI] | Questions [95% CI] |
-|---|---|---|---|---|
-| 1 | always_ask | 100.00% [100.00%, 100.00%] | 0.52 [0.39, 0.65] | 0.00 [0.00, 0.00] |
-| 1 | ask_or_act | 100.00% [100.00%, 100.00%] | 0.52 [0.39, 0.65] | 0.00 [0.00, 0.00] |
-| 1 | easy_info_gain_ask | 100.00% [100.00%, 100.00%] | 0.52 [0.39, 0.65] | 0.00 [0.00, 0.00] |
-| 1 | info_gain_ask | 100.00% [100.00%, 100.00%] | 0.52 [0.39, 0.65] | 0.00 [0.00, 0.00] |
-| 1 | never_ask | 100.00% [100.00%, 100.00%] | 0.52 [0.39, 0.65] | 0.00 [0.00, 0.00] |
-| 1 | pomcp_planner | 100.00% [100.00%, 100.00%] | 0.52 [0.39, 0.65] | 0.00 [0.00, 0.00] |
-| 1 | random_ask | 100.00% [100.00%, 100.00%] | 0.52 [0.39, 0.65] | 0.00 [0.00, 0.00] |
-| 2 | always_ask | 95.00% [90.00%, 99.00%] | 3.60 [3.25, 3.91] | 1.95 [1.77, 2.14] |
-| 2 | ask_or_act | 93.00% [88.00%, 98.00%] | 1.67 [1.33, 2.04] | 0.00 [0.00, 0.00] |
-| 2 | easy_info_gain_ask | 97.00% [94.00%, 100.00%] | 2.28 [2.09, 2.48] | 1.00 [1.00, 1.00] |
-| 2 | info_gain_ask | 98.00% [95.00%, 100.00%] | 2.28 [2.09, 2.46] | 1.02 [1.00, 1.05] |
-| 2 | never_ask | 93.00% [88.00%, 98.00%] | 1.67 [1.33, 2.04] | 0.00 [0.00, 0.00] |
-| 2 | pomcp_planner | 94.00% [89.00%, 98.00%] | 2.52 [2.18, 2.86] | 0.37 [0.26, 0.49] |
-| 2 | random_ask | 92.00% [86.00%, 97.00%] | 3.42 [3.13, 3.73] | 1.75 [1.61, 1.90] |
-| 3 | always_ask | 85.00% [77.00%, 91.02%] | 4.86 [4.60, 5.11] | 2.76 [2.64, 2.86] |
-| 3 | ask_or_act | 87.00% [80.00%, 93.00%] | 2.19 [1.84, 2.54] | 0.51 [0.41, 0.61] |
-| 3 | easy_info_gain_ask | 87.00% [80.00%, 93.00%] | 2.68 [2.41, 2.98] | 1.00 [1.00, 1.00] |
-| 3 | info_gain_ask | 86.00% [79.00%, 92.00%] | 3.21 [2.93, 3.51] | 1.45 [1.36, 1.55] |
-| 3 | never_ask | 82.00% [74.00%, 89.00%] | 2.21 [1.84, 2.59] | 0.00 [0.00, 0.00] |
-| 3 | pomcp_planner | 86.00% [79.00%, 93.00%] | 3.08 [2.71, 3.44] | 0.55 [0.42, 0.69] |
-| 3 | random_ask | 83.00% [75.00%, 90.00%] | 4.42 [4.14, 4.70] | 2.41 [2.27, 2.55] |
-| 4 | always_ask | 82.00% [75.00%, 89.00%] | 4.95 [4.67, 5.21] | 2.76 [2.65, 2.88] |
-| 4 | ask_or_act | 89.00% [83.00%, 95.00%] | 2.28 [1.96, 2.62] | 0.52 [0.43, 0.63] |
-| 4 | easy_info_gain_ask | 92.00% [87.00%, 97.00%] | 2.83 [2.57, 3.11] | 1.00 [1.00, 1.00] |
-| 4 | info_gain_ask | 90.00% [84.00%, 95.00%] | 3.35 [3.06, 3.65] | 1.52 [1.42, 1.62] |
-| 4 | never_ask | 84.00% [76.00%, 91.00%] | 2.13 [1.76, 2.49] | 0.00 [0.00, 0.00] |
-| 4 | pomcp_planner | 75.00% [66.00%, 83.00%] | 3.65 [3.31, 3.99] | 0.66 [0.51, 0.81] |
-| 4 | random_ask | 89.00% [83.00%, 95.00%] | 4.47 [4.21, 4.74] | 2.39 [2.25, 2.53] |
-| 5 | always_ask | 82.00% [74.00%, 89.00%] | 5.25 [5.07, 5.42] | 2.95 [2.89, 3.00] |
-| 5 | ask_or_act | 91.00% [85.00%, 96.00%] | 2.42 [2.06, 2.76] | 0.61 [0.49, 0.71] |
-| 5 | easy_info_gain_ask | 86.00% [78.00%, 92.00%] | 2.96 [2.69, 3.25] | 1.00 [1.00, 1.00] |
-| 5 | info_gain_ask | 88.00% [81.00%, 94.00%] | 3.51 [3.22, 3.79] | 1.62 [1.53, 1.71] |
-| 5 | never_ask | 85.00% [77.00%, 92.00%] | 2.34 [1.96, 2.70] | 0.00 [0.00, 0.00] |
-| 5 | pomcp_planner | 74.00% [65.00%, 82.00%] | 3.85 [3.51, 4.16] | 0.67 [0.53, 0.84] |
-| 5 | random_ask | 79.00% [70.00%, 86.02%] | 4.75 [4.47, 5.00] | 2.53 [2.39, 2.65] |
-| 6 | always_ask | 64.00% [54.00%, 73.00%] | 5.61 [5.43, 5.78] | 3.00 [3.00, 3.00] |
-| 6 | ask_or_act | 80.00% [72.00%, 88.00%] | 2.58 [2.21, 2.95] | 0.59 [0.48, 0.70] |
-| 6 | easy_info_gain_ask | 71.00% [62.00%, 80.00%] | 3.43 [3.10, 3.75] | 1.00 [1.00, 1.00] |
-| 6 | info_gain_ask | 73.00% [63.00%, 81.00%] | 4.12 [3.86, 4.38] | 1.65 [1.55, 1.74] |
-| 6 | never_ask | 74.00% [66.00%, 82.00%] | 2.73 [2.37, 3.11] | 0.00 [0.00, 0.00] |
-| 6 | pomcp_planner | 73.00% [64.00%, 82.00%] | 4.07 [3.72, 4.44] | 0.75 [0.60, 0.90] |
-| 6 | random_ask | 69.00% [59.00%, 77.00%] | 5.07 [4.86, 5.29] | 2.57 [2.44, 2.70] |
-
-Summary: as ambiguity increases to K=5-6, regret and question load rise as expected, but policy ordering remains broadly stable (graceful degradation).
 
 ## Failure Mode Breakdown
 
@@ -479,7 +384,6 @@ Summary: as ambiguity increases to K=5-6, regret and question load rise as expec
 *Clarification quality plot: `results/clarification_quality_entropy_delta.png`*
 *Ablations: `results/metrics_ablations.csv` and `results/ablations_dashboard.png`*
 *Robustness plots: `results/robust_answer_noise_deltas.png`, `results/robust_mismatch_deltas.png`*
-*Pareto plot: `results/pareto_K4.png`*
 
 ## Robustness Sweep Artifacts
 
@@ -487,10 +391,3 @@ Summary: as ambiguity increases to K=5-6, regret and question load rise as expec
 - `results/metrics_robust_mismatch.csv`
 - `results/robust_answer_noise_deltas.png`
 - `results/robust_mismatch_deltas.png`
-
-## Generalization Artifacts
-
-- `results/metrics_generalization_templates.csv`
-- `results/generalization_templates_plot.png`
-- `results/metrics_scaleK.csv`
-- `results/scaleK_plot.png`

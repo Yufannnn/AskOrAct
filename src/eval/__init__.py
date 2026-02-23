@@ -1,9 +1,22 @@
 """Evaluation: run_episode, run_sweep, run_ablations, plots."""
 
-from src.eval.run import run_episode, run_sweep, run_ablations, oracle_steps
+from src.eval.run import (
+    run_episode,
+    run_sweep,
+    run_ablations,
+    run_robust_answer_noise,
+    run_robust_mismatch,
+    run_question_difficulty_sweep,
+    run_generalization_templates,
+    run_scale_k,
+    oracle_steps,
+)
 from src.eval.plots import (
     load_metrics,
     load_ablation_metrics,
+    load_question_difficulty_metrics,
+    load_generalization_templates_metrics,
+    load_scale_k_metrics,
     aggregate_by_condition,
     plot_regret_vs_ambiguity,
     plot_questions_vs_ambiguity,
@@ -12,15 +25,31 @@ from src.eval.plots import (
     plot_ablation_figures,
     plot_main_dashboard,
     plot_ablations_dashboard,
+    plot_clarification_quality_entropy_delta,
+    plot_robust_answer_noise_deltas,
+    plot_robust_mismatch_deltas,
+    plot_question_difficulty_dashboard,
+    plot_question_difficulty_entropy_delta,
+    plot_generalization_templates,
+    plot_scale_k,
+    plot_pareto_k4,
 )
 
 __all__ = [
     "run_episode",
     "run_sweep",
     "run_ablations",
+    "run_robust_answer_noise",
+    "run_robust_mismatch",
+    "run_question_difficulty_sweep",
+    "run_generalization_templates",
+    "run_scale_k",
     "oracle_steps",
     "load_metrics",
     "load_ablation_metrics",
+    "load_question_difficulty_metrics",
+    "load_generalization_templates_metrics",
+    "load_scale_k_metrics",
     "aggregate_by_condition",
     "plot_regret_vs_ambiguity",
     "plot_questions_vs_ambiguity",
@@ -29,4 +58,12 @@ __all__ = [
     "plot_ablation_figures",
     "plot_main_dashboard",
     "plot_ablations_dashboard",
+    "plot_clarification_quality_entropy_delta",
+    "plot_robust_answer_noise_deltas",
+    "plot_robust_mismatch_deltas",
+    "plot_question_difficulty_dashboard",
+    "plot_question_difficulty_entropy_delta",
+    "plot_generalization_templates",
+    "plot_scale_k",
+    "plot_pareto_k4",
 ]

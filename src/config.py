@@ -30,6 +30,11 @@ DEFAULT_EPS = 0.05
 # Questions / answer
 # -----------------------------------------------------------------------------
 ANSWER_NOISE = 0.0
+ANSWER_NOISE_BY_QTYPE = {
+    "color": 0.05,
+    "room": 0.10,
+    "object": 0.20,
+}
 QUESTION_COST = 0.5
 ASK_COUNTS_AS_STEP = True
 MAX_QUESTIONS = 3
@@ -37,8 +42,15 @@ MAX_QUESTIONS_PER_EPISODE = None  # None / -1 means no additional episode-level 
 ENTROPY_GATE = 0.8
 ASK_WINDOW = 6
 ENTROPY_THRESHOLD = 0.5
+IG_THRESHOLD = 0.01
+INFOGAIN_USE_ENTROPY_GATE = True
+EASY_IG_MAX_QUESTIONS = 1
 WRONG_PICK_PENALTY = 0  # Option A: 0 = do not fail on wrong pick; episode continues.
 WRONG_PICK_FAIL = False
+POMCP_ITERS = 200
+POMCP_HORIZON = 8
+POMCP_UCT_C = 1.4
+POMCP_MIN_K = 2
 
 # Debug tracing
 DEBUG = False
@@ -51,7 +63,15 @@ DEBUG_MIN_K = 3
 AMBIGUITY_LEVELS = [1, 2, 3, 4]
 EPS_LEVELS = [0.0, 0.05, 0.1]
 BETA_LEVELS = [1.0, 2.0, 4.0]
-POLICIES = ["ask_or_act", "never_ask", "always_ask"]
+POLICIES = [
+    "ask_or_act",
+    "never_ask",
+    "always_ask",
+    "info_gain_ask",
+    "easy_info_gain_ask",
+    "random_ask",
+    "pomcp_planner",
+]
 N_EPISODES_PER_CONDITION = 20
 BASE_SEED = 42
 REPL_SEEDS = [0, 1, 2, 3, 4]

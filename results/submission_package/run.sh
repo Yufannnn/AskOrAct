@@ -20,8 +20,6 @@ Usage:
   ./run.sh sweep             (main sweep + main dashboard)
   ./run.sh ablations         (ablation sweep + ablation dashboard)
   ./run.sh robustness        (focused K=3,4 robustness sweeps + delta plots)
-  ./run.sh qdifficulty       (focused question-difficulty sweep + plots)
-  ./run.sh generalization    (held-out template split + scale-K stress tests + plots)
   ./run.sh report            (regenerate report + dashboards from CSVs)
   ./run.sh package           (build submission package + zip in results)
   ./run.sh all               (sweep + ablations + robustness + report + package)
@@ -107,16 +105,6 @@ robustness() {
   "$PYTHON_VENV" scripts/run_robustness.py
 }
 
-qdifficulty() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/run_question_difficulty.py
-}
-
-generalization() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/run_generalization.py
-}
-
 report() {
   ensure_venv
   "$PYTHON_VENV" scripts/generate_report.py
@@ -144,8 +132,6 @@ case "$cmd" in
   sweep) sweep ;;
   ablations) ablations ;;
   robustness) robustness ;;
-  qdifficulty) qdifficulty ;;
-  generalization) generalization ;;
   report) report ;;
   package) package ;;
   all) all ;;

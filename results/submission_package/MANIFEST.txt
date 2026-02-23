@@ -1,0 +1,23 @@
+Generated: 2026-02-23 18:58:30
+Bundle: submission_package
+
+Included files:
+- README.md | 2954 bytes | sha256=cbc7bde3c826e097907ffb3699dc3138597d5ed894416ab15a793ae3beafd8db
+- requirements.txt | 124 bytes | sha256=d9b46e23d744cc14b260648cb146a5977c898e4b747a0415d655e08e1af3723c
+- run.sh | 3031 bytes | sha256=cd4bf9197099dd8089771868566913e167cb0a047a17bc7e6a92cddf3bb6f479
+- report/full_report.md | 22919 bytes | sha256=08a0c71a4db41e0d4e1404c83091a83035508f436814b7e1db5b18b177ad5b9f
+- figures/main_dashboard.png | 138589 bytes | sha256=410688291ffcf37a63ed66416166614d80c7b1e171a5bf2d959a2a88f6e47217
+- figures/clarification_quality_entropy_delta.png | 33923 bytes | sha256=57bef746821ef2e9dd9b466a664a6fbd9b3d34047733d0206d787638978c170a
+- figures/ablations_dashboard.png | 264871 bytes | sha256=0684ab1c10b086429d0af3bbb5ff6845f8b3984db8326aad39fc576b707080c0
+- data/metrics.csv | 2538437 bytes | sha256=78753009f043af23d9adf65b549ac2d28ae03790d0afcb19fdbba298f5353321
+- data/metrics_ablations.csv | 918289 bytes | sha256=dfb818fbc9a10299ccad991404155067f24b75a3643959a1339f1d86249cd621
+- data/metrics_robust_answer_noise.csv | 415800 bytes | sha256=0e0debf7570931a546f9e65f45180fbd19dbeaaec3abbc8cad13e89b0cfcd481
+- data/metrics_robust_mismatch.csv | 401513 bytes | sha256=d8278107bd6887b957c5e2f17f03efa35b2164d216d86c6728ec877950b4c9cc
+- report/milestone_feb13_feb20_report.md | 1683 bytes | sha256=4d3783e02642458a61bd8a6b482f06a84d1b64d0b8563a1f2a11786fabc26583
+- figures/robust_answer_noise_deltas.png | 67116 bytes | sha256=aa0cd8c03edd4f96ff3d5333bb12867d70a82d656f9dfdf0f407e82670c8d451
+- figures/robust_mismatch_deltas.png | 66644 bytes | sha256=0ed71ef63d444330d82e05a4d35aee302e6acafe3dd33180ef1cde4e8d4ba3a8
+- presentation/presentation_slides.md | 3250 bytes | sha256=ca377361af8fd8e93a2ddcb4ec493143ab05801bcda7286b6e019fe3749e1c96
+- presentation/presentation_talk_track.md | 2595 bytes | sha256=e907696f3d4b4b578aab374a0000c296f13893c5383eff16ed1d6eb38843c7ba
+- presentation/executive_summary.md | 1322 bytes | sha256=74c2013649f96de0fb30229fea6e424e8da736fca2f57525813ce7ae07e050a8
+- report/final_report.md | 14219 bytes | sha256=8fa481246034be5be7ab3f69b62b4c9222dba8df600f039ee3dff4e8e6e58ba5
+- presentation/submission_checklist.md | 919 bytes | sha256=e60241ec47f20e7bb70dddf1c3e7d537c4d98f51841db4c467d28047d2effaf6
