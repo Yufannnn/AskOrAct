@@ -424,6 +424,9 @@ def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.jso
                 try:
                     m = fut.result()
                 except Exception:
+                    import traceback
+                    traceback.print_exc()
+                    print(f"[sweep] ERROR in episode policy={policy_name} seed={seed} cfg={cfg} — substituting failure row", flush=True)
                     m = {
                         "success": False,
                         "steps": config.MAX_STEPS,
@@ -684,7 +687,6 @@ def run_robust_answer_noise(output_csv="results/metrics_robust_answer_noise.csv"
     # actually used by _noise_for_question() instead of being shadowed by
     # ANSWER_NOISE_BY_QTYPE (which covers all question types).
     _saved_by_qtype = getattr(config, "ANSWER_NOISE_BY_QTYPE", {})
-    config.ANSWER_NOISE_BY_QTYPE = {}
     ks = [3, 4]
     answer_noises = [0.0, 0.1, 0.2]
     principal_eps = config.DEFAULT_EPS
@@ -695,6 +697,7 @@ def run_robust_answer_noise(output_csv="results/metrics_robust_answer_noise.csv"
     n_episodes_per_seed = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
 
     try:
+        config.ANSWER_NOISE_BY_QTYPE = {}
         rows = []
         for K in ks:
             for answer_noise in answer_noises:
@@ -787,9 +790,7 @@ def run_robust_mismatch(output_csv="results/metrics_robust_mismatch.csv"):
     assistant_beta = config.DEFAULT_BETA
     answer_noise = config.ANSWER_NOISE
     reps = list(getattr(config, "REPL_SEEDS", [0]))
-    n_episodes_per_seed = min(
-        5, int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
-    )
+    n_episodes_per_seed = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
 
     rows = []
     for K in ks:
@@ -881,9 +882,7 @@ def run_question_difficulty_sweep(output_csv="results/metrics_question_difficult
     beta_vals = [config.DEFAULT_BETA]
     answer_noise = config.ANSWER_NOISE
     reps = list(getattr(config, "REPL_SEEDS", [0]))
-    n_episodes_per_seed = min(
-        2, int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
-    )
+    n_episodes_per_seed = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
 
     total_per_condition = len(reps) * n_episodes_per_seed
     print(

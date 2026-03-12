@@ -202,7 +202,8 @@ class GridWorldEnv:
     def reset(self, seed=None):
         """Reset env to initial state: initial positions, no objects collected."""
         if seed is not None:
-            np.random.seed(seed)
+            # Use a local RandomState to avoid polluting the global numpy RNG.
+            self._rng = np.random.RandomState(seed)
         if self._initial_state is not None:
             self.principal_pos = self._initial_state[0]
             self.assistant_pos = self._initial_state[1]

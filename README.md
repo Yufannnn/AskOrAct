@@ -31,13 +31,13 @@ Run these in order from the repo root. Each command is idempotent.
 # 1. Clean any stale artifacts first
 rm -f results/*.csv results/*.png results/full_report.md
 
-# 2. Core sweep (results/metrics.csv — 19800 rows)
+# 2. Core sweep (results/metrics.csv — 25200 rows)
 ./run.sh sweep
 
 # 3. Ablations (results/metrics_ablations.csv — 9072 rows)
 ./run.sh ablations
 
-# 4. Robustness (answer-noise + mismatch; ~7200 rows total)
+# 4. Robustness (answer-noise + mismatch; ~8400 rows total)
 ./run.sh robustness
 
 # 5. Generalization and scale-K (held-out templates + K=5,6)
@@ -63,10 +63,10 @@ After a full reproduction run, confirm row counts match:
 python3 - <<'EOF'
 import csv, sys, os
 expected = {
-    "results/metrics.csv":                          19800,
+    "results/metrics.csv":                          25200,
     "results/metrics_ablations.csv":                 9072,
     "results/metrics_robust_answer_noise.csv":       4200,
-    "results/metrics_robust_mismatch.csv":           3000,
+    "results/metrics_robust_mismatch.csv":           4200,
     "results/metrics_generalization_templates.csv": 14400,
     "results/metrics_scaleK.csv":                    4200,
     "results/metrics_question_difficulty.csv":        800,

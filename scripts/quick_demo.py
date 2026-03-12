@@ -40,7 +40,6 @@ def main():
         print("Posterior top 3 goals (id, prob):", top_probs)
 
         principal_action = sample_principal_action(state, true_goal_obj_id, env, rng, config.DEFAULT_BETA, config.DEFAULT_EPS)
-        principal_action_history.append(principal_action)
 
         out, posterior = policy_ask_or_act(
             env=env, state=state, instruction_u=instruction_u, posterior=posterior,
@@ -67,6 +66,7 @@ def main():
         print("Assistant decision: ACT  action:", assistant_action)
         print("Principal action:", principal_action)
         update_posterior(posterior, state, principal_action, candidate_goals, env, config.DEFAULT_BETA, config.DEFAULT_EPS)
+        principal_action_history.append(principal_action)
         state, done, info = env.step(principal_action, assistant_action, true_goal_obj_id=true_goal_obj_id)
         success = info.get("assistant_picked_goal", False)
 
