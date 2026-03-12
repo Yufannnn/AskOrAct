@@ -115,7 +115,7 @@ On the success--regret Pareto frontier at $K{=}4$, \textit{AskOrAct} is efficien
 The horizontal axis is ambiguity level $K \in \{1,2,3,4\}$; three stacked panels show (top) success rate, (middle) regret, and (bottom) average questions per episode, with 95\% CI error bars.
 Readers see: (a) all policies tie at $K{=}1$ (sanity check); (b) the success gap between \textit{AskOrAct} and \textit{NeverAsk} widens with ambiguity; (c) \textit{AlwaysAsk}/\textit{RandomAsk} ask far more questions without a commensurate gain.
 
-An \textbf{aggregate delta table} (planned for final report) will have rows $K \in \{2,3,4\}$ and columns $\Delta$Success (\textit{AskOrAct}$-$\textit{NeverAsk}) with 95\% CI, and $\Delta$Regret (\textit{AskOrAct}$-$\textit{AlwaysAsk}) with questions/ep, letting readers see at a glance which improvements are statistically significant.
+An \textbf{aggregate delta table} (planned for final report) will have rows $K \in \{2,3,4\}$ and columns $\Delta$Success (\textit{AskOrAct}$-$\textit{NeverAsk}) with 95\% CI, and $\Delta$Regret (\textit{AskOrAct}$-$\textit{AlwaysAsk}) with questions/ep, letting readers see at a glance which improvements are statistically significant and at what asking cost.
 
 \section*{Plan for Remaining Time}
 
@@ -130,7 +130,7 @@ Write the 4-page paper covering introduction, related work, method (posterior up
 Prepare 14 slides with backup slides for likely Q\&A topics (entropy gate sensitivity, question cost ablation, scalability to $K{>}4$).
 
 \textbf{Step 4 --- Submission package} (\textit{by April 10}).
-Run \texttt{./run.sh package} to produce \texttt{submission\_package.zip} with all CSVs, plots, PDFs, and a \texttt{REPRODUCE.txt} with checksums for all seven output files.
+Run \texttt{./run.sh package} to produce \texttt{submission\_package.zip} with all CSVs, plots, PDFs, and a \texttt{REPRODUCE.txt} with checksums for all seven output files to enable full reproduction.
 
 \section*{AI Tool Declaration}
 I used Claude Sonnet 4.6 (Anthropic) for coding assistance, debugging, and text editing throughout the project.
