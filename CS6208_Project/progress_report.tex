@@ -13,7 +13,7 @@
 
 \setlength{\columnsep}{0.25in}
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{4pt}
+\setlength{\parskip}{3pt}
 
 \begin{document}
 
@@ -21,84 +21,55 @@
 {\Large \textbf{CS6208 Progress Report}}\\
 \vspace{2pt}
 {\large \textbf{Ask or Act for Cooperative Assistance via Inverse Planning}}\\
-\vspace{4pt}
-\textbf{Team member} Zhu Yufan A0238993J \quad \textit{March 13, 2026}
+\vspace{3pt}
+\textbf{Team member:} Zhu Yufan \; A0238993J \quad \textit{March 13, 2026}
 \end{center}
 
-\vspace{-6pt}
+\vspace{-4pt}
 
-\section*{Summary of Progress}
+\section*{What Has Been Done}
 
-All milestones through March 13 have been completed on schedule.
-The gridworld environment, Bayesian inference engine, question bank, and seven assistant policies were implemented across February.
-A full evaluation sweep with ablations, robustness tests, and generalization experiments was completed in early March.
-During evaluation we identified and fixed a critical configuration bug that had silently disabled asking behavior at ambiguity level $K{=}2$.
-
-\section*{System Overview}
-
-We implement a cooperative gridworld where a principal holds a hidden goal (which object to fetch) and issues a short, potentially ambiguous instruction.
-The assistant observes the state, the instruction, and the principal's movement actions, and at each step must choose between a physical task action or a clarifying question.
-
-Goal inference follows Bayesian inverse planning \cite{baker2009}: we maintain a posterior $b(g)$ over candidate goals, initialized from the instruction template and updated via a Boltzmann action likelihood $P(a \mid s, g) \propto \exp(-\beta \cdot d(s', g))$ with uniform noise rate $\varepsilon$ \cite{jara2016}.
-The ask-or-act policy selects the option with lower expected team cost:
+All milestones through March 13 are complete.
+We implement a cooperative $9{\times}9$ two-room gridworld in which a principal holds a hidden goal and issues an ambiguous instruction mapping to $K \in \{1,2,3,4\}$ candidate goals.
+The assistant maintains a Bayesian posterior over goals, initialised from the instruction and updated by observed principal actions via a Boltzmann likelihood~\cite{baker2009,jara2016}, and at each step compares the expected team cost of acting now versus asking the best available clarifying question~\cite{hadfield2016cirl}:
 \[
-  \text{cost}_{\text{ask}}(q) = 1 + c_q + \mathbb{E}_{a \mid q}[V(s, b_{q,a})], \quad
-  \text{cost}_{\text{act}} = 1 + V(s, b, g^*)
+  \text{CostAsk}(q) = 1 + c_q + \mathbb{E}_{a|q}[V(s,b_{q,a})], \;\;
+  \text{CostAct} = 1 + V(s,b,g^*).
 \]
-where $c_q$ is the question cost, $b_{q,a}$ is the posterior after answer $a$, and $V$ approximates remaining distance to the MAP goal.
-This is a value-of-information (VoI) framing, connecting to cooperative inverse reinforcement learning \cite{hadfield2016cirl} and cooperative language-guided inverse planning \cite{tan2024clips}.
-Language is a controlled discrete channel: templated instructions map deterministically to candidate goal sets; questions and answers are drawn from a fixed vocabulary.
+Seven policies were implemented: \textit{AskOrAct} (VoI), \textit{NeverAsk}, \textit{AlwaysAsk}, \textit{InfoGainAsk}, \textit{EasyInfoGainAsk}, \textit{RandomAsk}, and \textit{POMCPPlanner}.
+A full sweep over $\varepsilon \in \{0,0.05,0.1\}$, $\beta \in \{1,2,4\}$, 5 replicate seeds $\times$ 20 episodes (100 per cell, 19{,}800 total) was run with 95\% bootstrap CIs.
+Ablations (question cost, wrong-pick failure mode, deadline margin), robustness sweeps (answer noise, principal $\beta$-mismatch), held-out template generalization, and scale-$K$ stress tests ($K$ up to 6) were completed.
 
-\section*{What Was Implemented}
+\textbf{Bug discovered and fixed.}
+\textit{AskOrAct} produced results identical to \textit{NeverAsk} at $K{=}2$ (zero questions asked).
+The cause: \texttt{ENTROPY\_GATE = 0.8}, but the uniform prior over $K{=}2$ goals has entropy $\ln 2 \approx 0.693 < 0.8$, so the gate fired at every step.
+Fix: \texttt{ENTROPY\_GATE} reduced from 0.8 to 0.3.
+Post-fix: \textit{AskOrAct} 97\% success vs.\ \textit{NeverAsk} 85\% at $K{=}2$ ($\varepsilon{=}0$, $\beta{=}1$).
 
-\begin{itemize}\setlength{\itemsep}{1pt}
-  \item 9$\times$9 two-room gridworld with 6 objects and BFS pathfinding.
-  \item Four instruction templates producing $K \in \{1, 2, 3, 4\}$ candidate goals.
-  \item Boltzmann principal with parameters $\beta$ (rationality) and $\varepsilon$ (noise).
-  \item Bayesian posterior: initialized from instruction, updated from principal actions.
-  \item Question bank: three question types (color, room, object type) with per-type answer noise.
-  \item Seven assistant policies: \textit{AskOrAct} (VoI), \textit{NeverAsk}, \textit{AlwaysAsk}, \textit{InfoGainAsk}, \textit{EasyInfoGainAsk}, \textit{RandomAsk}, \textit{POMCPPlanner}.
-  \item Full evaluation sweep: $K \in \{1,2,3,4\}$, $\varepsilon \in \{0, 0.05, 0.1\}$, $\beta \in \{1, 2, 4\}$, 5 replicate seeds $\times$ 20 episodes per condition (100 episodes per cell), 95\% bootstrap CIs.
-  \item Ablation suite: question cost weighting (0 vs.\ 0.5), wrong-pick failure mode, episode deadline margin (3/5/7 steps).
-  \item Robustness sweeps: answer noise variation, principal $\beta$-mismatch.
-  \item Held-out instruction template generalization and scale-$K$ stress test ($K$ up to 6).
-\end{itemize}
-
-\section*{Bug Discovered and Fixed}
-
-During analysis we found that \textit{AskOrAct} produced results identical to \textit{NeverAsk} at $K{=}2$, with zero questions asked across all episodes.
-The cause was \texttt{ENTROPY\_GATE = 0.8} in \texttt{src/config.py}.
-The policy skips the ask branch when $H(b) \leq \texttt{ENTROPY\_GATE}$, but the uniform prior over $K{=}2$ goals has entropy $\ln 2 \approx 0.693 < 0.8$, so the gate fires at every step and asking is never considered.
-
-\textbf{Fix:} \texttt{ENTROPY\_GATE} reduced from \textbf{0.8} to \textbf{0.3}.
-This value lies below $\ln 2$ (allowing K=2 to enter the ask branch) and above the near-certain threshold ($\approx 0.05$--$0.10$), letting the expected-cost comparison determine whether to ask.
-Three additional minor fixes were applied: a guard against \texttt{nan} probabilities when all goal positions are unreachable in \texttt{principal\_action\_probs}; \texttt{float("nan")} sentinels in the degenerate-episode return path of the evaluation loop; and a warning print when a policy requests an unregistered question ID.
-
-\section*{Experimental Results}
+\section*{Preliminary Findings}
 
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{main_dashboard.png}
-  \caption{Main evaluation dashboard. Each cell aggregates 100 episodes. \textit{AskOrAct} matches or beats \textit{NeverAsk} on success and regret at $K \geq 3$ while asking far fewer questions than \textit{AlwaysAsk} and \textit{InfoGainAsk}.}
+  \caption{Main evaluation dashboard (100 ep/cell, error bars = 95\% CI).}
   \label{fig:main}
 \end{figure}
 
-Figure~\ref{fig:main} shows the main sweep results across all $K$ levels.
-At $K{=}1$ (no ambiguity) all policies are equivalent, as expected.
-The critical comparison is at $K \geq 3$, where instruction ambiguity is genuine.
-
-Table~\ref{tab:k3} reports results at $K{=}3$, $\varepsilon{=}0.0$, $\beta{=}1.0$, the hardest noise-free condition.
-\textit{AskOrAct} achieves \textbf{90\%} success---14 points above \textit{NeverAsk} (76\%)---while asking only 0.74 questions on average and achieving the \textbf{lowest regret} (2.19).
-\textit{InfoGainAsk} reaches 93\% success but costs 1.25 questions and higher regret (2.58) because it asks even when the posterior is already sufficiently concentrated.
-\textit{AlwaysAsk} achieves 87\% success at the highest regret (4.14) due to question overhead.
+Figure~\ref{fig:main} and Tables~\ref{tab:k3}--\ref{tab:k2} summarise key results.
+At $K{=}1$ all policies are equivalent (sanity check).
+At $K \geq 3$, \textit{AskOrAct} outperforms \textit{NeverAsk} with statistical significance:
+$+7.9$\,pp at $K{=}3$ (95\% CI $[5.0, 10.8]$) and $+8.4$\,pp at $K{=}4$ (95\% CI $[5.1, 12.1]$), while asking only 0.6--0.7 questions per episode.
+\textit{AlwaysAsk} asks 3--4$\times$ more but achieves similar or lower success and much higher regret ($+2.1$ at $K{=}4$).
+Robustness sweeps show the advantage holds under answer noise (K=4: $+4$--$+9$\,pp across noise 0--0.2) and principal model mismatch ($+13.5$\,pp when $\beta_{\text{true}}{=}1$ vs.\ $\hat\beta{=}2$).
+The ablation confirms that a non-zero question cost ($c_q{=}0.5$) is essential: setting $c_q{=}0$ causes over-asking, reducing success from 73.8\% to 69.2\%.
 
 \begin{table}[h]
-  \centering
-  \caption{Results at $K{=}3$, $\varepsilon{=}0.0$, $\beta{=}1.0$ (100 episodes).}
+  \centering\small
+  \caption{Results at $K{=}3$, $\varepsilon{=}0$, $\beta{=}1$ (100 episodes).}
   \label{tab:k3}
   \begin{tabular}{lccc}
     \toprule
-    Policy & Success & Avg Q & Avg Regret \\
+    Policy & Success & Avg Q & Regret \\
     \midrule
     \textit{AskOrAct}    & \textbf{90\%} & 0.74 & \textbf{2.19} \\
     \textit{NeverAsk}    & 76\%          & 0.00 & 2.51 \\
@@ -108,17 +79,13 @@ Table~\ref{tab:k3} reports results at $K{=}3$, $\varepsilon{=}0.0$, $\beta{=}1.0
   \end{tabular}
 \end{table}
 
-Table~\ref{tab:k2} shows the corrected $K{=}2$ results after applying the entropy gate fix.
-\textit{AskOrAct} now achieves \textbf{97\%} success (versus 85\% for \textit{NeverAsk}) while asking only 0.71 questions and achieving the lowest regret (1.84).
-Prior to the fix, both policies were identical (0 questions, 85\% success), an artifact of the misconfigured entropy gate.
-
 \begin{table}[h]
-  \centering
-  \caption{Results at $K{=}2$, $\varepsilon{=}0.0$, $\beta{=}1.0$ (corrected, 100 episodes).}
+  \centering\small
+  \caption{Results at $K{=}2$, $\varepsilon{=}0$, $\beta{=}1$, post-fix (100 ep.).}
   \label{tab:k2}
   \begin{tabular}{lccc}
     \toprule
-    Policy & Success & Avg Q & Avg Regret \\
+    Policy & Success & Avg Q & Regret \\
     \midrule
     \textit{AskOrAct}    & \textbf{97\%} & 0.71 & \textbf{1.84} \\
     \textit{NeverAsk}    & 85\%          & 0.00 & 2.16 \\
@@ -128,46 +95,36 @@ Prior to the fix, both policies were identical (0 questions, 85\% success), an a
   \end{tabular}
 \end{table}
 
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{pareto_K4.png}
-  \caption{Success--regret Pareto frontier at $K{=}4$. \textit{AskOrAct} dominates \textit{NeverAsk} and achieves competitive regret relative to \textit{InfoGainAsk} with fewer questions.}
-  \label{fig:pareto}
-\end{figure}
+\section*{Key Plot/Table for Final Report}
 
-Figure~\ref{fig:pareto} shows the Pareto frontier at $K{=}4$.
-\textit{AskOrAct} lies on the efficient frontier: it dominates \textit{NeverAsk} in both success and regret, and outperforms \textit{AlwaysAsk} and \textit{RandomAsk} in regret, while remaining close to \textit{InfoGainAsk}.
+\textbf{Figure~\ref{fig:main} (main dashboard)} will appear in the final report.
+The horizontal axis is ambiguity $K \in \{1,2,3,4\}$; the three vertical panels show (top) success rate, (middle) regret, and (bottom) questions asked per episode, one bar group per policy with 95\% CI error bars.
+Readers learn: (a) at $K{=}1$ all policies tie---confirming the implementation is correct; (b) the success gap between \textit{AskOrAct} and \textit{NeverAsk} widens monotonically with $K$; (c) \textit{AlwaysAsk} asks many more questions without a commensurate success gain, visible from the contrast between panels (top) and (bottom).
+This figure is the central evidence for the claim that selective asking is superior to both extremes.
 
-\section*{Robustness and Generalization}
+\textbf{Aggregate delta table} (to appear in final report): rows are $K \in \{2,3,4\}$, columns are $\Delta$Success (\textit{AskOrAct}$-$\textit{NeverAsk}) with 95\% CI, $\Delta$Regret (\textit{AskOrAct}$-$\textit{AlwaysAsk}), and questions/ep.
+Readers see at a glance whether improvements are statistically significant and at what cost in questions.
 
-\textbf{Answer noise.}
-Sweeping per-question answer noise from 0 to 0.2 shows that \textit{AskOrAct}'s advantage over \textit{NeverAsk} is retained in most conditions.
-At $K{=}4$, the success gap holds across all noise levels (+4--9\,pp).
-At $K{=}3$ the advantage is smaller and reverses at noise$\,{=}\,0.1$ (\textit{AskOrAct} 92.0\% vs.\ \textit{NeverAsk} 94.0\%), where noisy answers can mislead the posterior; the gap re-opens at noise$\,{=}\,0.2$ (95.0\% vs.\ 94.0\%).
+\section*{Plan for Remaining Time}
 
-\textbf{Principal model mismatch.}
-The assistant's model is fixed at $\hat{\beta}{=}2$ while the principal's true $\beta$ is varied over $\{1, 2, 4\}$.
-The hardest condition is true $\beta{=}1$ (principal acts near-randomly; parameter distance $|\beta_{\text{true}}-\hat{\beta}|{=}1$), where \textit{AskOrAct} retains a +13.5\,pp advantage over \textit{NeverAsk} (83.5\% vs.\ 70.0\%); at matched $\beta{=}2$ the gap is +4\,pp (92.5\% vs.\ 88.5\%).
-The largest parameter mismatch ($\beta_{\text{true}}{=}4$, distance${=}2$) is less disruptive because a highly rational principal is easier to model.
+\textbf{Step 1 --- Failure-mode analysis} (\textit{deadline: March 21}).
+Separate timeout failures from wrong-pick failures per $(K,\varepsilon,\beta)$ for all policies.
+Identify the specific conditions where \textit{AskOrAct} underperforms (e.g.\ $K{=}3$, noise$\,{=}\,0.1$ regression) and determine whether they are due to posterior misdirection from noisy answers, exhausted question budget, or a closed ask window.
+Results will feed directly into the final report's discussion section.
 
-\textbf{Held-out instruction templates.}
-Testing on instruction templates not seen during policy design shows performance degrades mildly but maintains the policy ordering, confirming that results are not template-specific.
+\textbf{Step 2 --- Final report} (\textit{deadline: April 3}).
+Write the complete 4-page technical paper: introduction, related work, full method (posterior update equations, VoI decision rule, gating conditions), experiments with aggregate tables and delta-CI analysis, ablation and robustness sections, discussion of limitations, and conclusion.
+Regenerate all figures from the final corrected CSVs for inclusion.
 
-\textbf{Scale-$K$.}
-Extending to $K \in \{5, 6\}$ shows the advantage of asking grows: at $K{=}6$, \textit{AskOrAct} retains meaningful success rates while \textit{NeverAsk} falls substantially, consistent with VoI being most valuable under high ambiguity.
+\textbf{Step 3 --- Presentation} (\textit{deadline: April 8}).
+Prepare 14 slides with actual result numbers, figures, and backup slides for Q\&A (entropy gate sensitivity, question cost ablation, scalability).
 
-\section*{Remaining Work (April 10 milestone)}
-
-\begin{itemize}\setlength{\itemsep}{1pt}
-  \item Detailed failure-mode analysis: separate breakdown of timeout versus wrong-pick failures and their dependence on $K$, $\varepsilon$, $\beta$.
-  \item Additional ablation or sensitivity analysis as needed based on failure patterns.
-  \item Final report or reproducible notebook, with complete methodology and results writeup.
-  \item Presentation preparation.
-\end{itemize}
+\textbf{Step 4 --- Submission package} (\textit{deadline: April 10}).
+Run \texttt{./run.sh package} to produce \texttt{submission\_package.zip} containing all data, plots, report PDFs, and reproduction instructions.
 
 \section*{AI Tool Declaration}
-I used ChatGPT GPT-5.2 to brainstorm project ideas and refine text.
-I am responsible for the content and quality of the submitted work.
+I used Claude Sonnet 4.6 (Anthropic) for coding assistance, debugging, and editing.
+I am responsible for all research decisions, experimental design, and the content of this report.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
