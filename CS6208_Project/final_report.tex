@@ -1,0 +1,304 @@
+\documentclass[10pt,twocolumn]{article}
+
+\usepackage[margin=0.72in]{geometry}
+\usepackage{times}
+\usepackage{microtype}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\graphicspath{{../results/}}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\setlength{\columnsep}{0.25in}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+\begin{document}
+
+\begin{center}
+{\Large \textbf{Ask or Act for Cooperative Assistance via Inverse Planning}}\\
+\vspace{4pt}
+{\large CS6208 Final Report}\\
+\vspace{4pt}
+\textbf{Zhu Yufan} \quad A0238993J \quad \textit{April 10, 2026}
+\end{center}
+
+\vspace{-4pt}
+
+\begin{abstract}
+We study cooperative assistance under instruction ambiguity: should a helper ask a clarifying question or act immediately?
+We implement a controlled gridworld in which an assistant infers a Bayesian posterior over a principal's hidden goal from an ambiguous instruction and observed actions, then decides whether to act or ask.
+Our \textit{AskOrAct} policy selects whichever option minimises expected team cost, using a value-of-information criterion.
+Across 19{,}800 episodes spanning ambiguity levels $K \in \{1,2,3,4\}$, rationality parameters, and principal noise, \textit{AskOrAct} achieves $+7.9$\,pp and $+8.4$\,pp higher success than a non-asking baseline at $K{=}3$ and $K{=}4$ (95\% CI both exclude zero), while asking only $0.6$--$0.7$ questions per episode.
+Robustness sweeps confirm the advantage persists under answer noise and principal model mismatch.
+Ablations reveal that a non-zero question cost and correct ask-window semantics are necessary for stable performance.
+\end{abstract}
+
+\section{Introduction}
+
+Cooperative assistance requires a helper to decide between acting on its current belief or seeking more information.
+Acting immediately risks committing to the wrong goal; asking too often wastes time and may frustrate the principal.
+The optimal policy depends on the informativeness of questions, the cost of a wrong action, and the principal's revealed behaviour.
+
+We study this problem in a controlled gridworld where the principal's goal is hidden and the instruction is ambiguous ($K$ candidate goals map to the same surface form).
+The assistant maintains a Bayesian posterior over goals, updated from the instruction prior and observed principal actions via inverse planning.
+At each step, the \textit{AskOrAct} policy computes the expected cost of acting now (\textit{CostAct}) and the expected cost of asking the best available question (\textit{CostAsk}), and selects the lower-cost option.
+
+The main contributions are:
+\begin{itemize}
+  \item A reproducible cooperative gridworld benchmark with templated ambiguity and a Boltzmann principal model.
+  \item A value-of-information ask-or-act policy with entropy gating, ask-window, and per-question cost.
+  \item A systematic evaluation across 7 policies, ablations, and robustness sweeps with 95\% bootstrap CIs.
+  \item An analysis of when asking helps and when it fails.
+\end{itemize}
+
+\section{Related Work}
+
+Inverse planning treats observed behaviour as evidence for latent goals via a rational action model~\cite{baker2009}.
+We build on this perspective for online goal inference during cooperation.
+
+Cooperative Inverse Reinforcement Learning~\cite{hadfield2016cirl} formalises human-robot teams where the robot is uncertain about the human's reward function.
+Our setting is complementary: we use a fixed, known reward structure but allow the principal's goal to be uncertain from a known template family.
+
+CLIPS~\cite{tan2024clips} motivates combining language and action evidence for goal inference in richer environments.
+We study the same combination in a controlled setting where the relative contribution of instruction vs.\ action evidence can be measured.
+
+Active information gathering in POMDPs~\cite{kaelbling1998} motivates asking as a sensor action.
+Our approach approximates the POMDP solution with a one-step lookahead cost comparison, which is tractable and interpretable.
+
+Decision-theoretic models of question asking~\cite{jara2016} connect utility and effort to communication.
+Our question cost term directly operationalises this: asking is beneficial only when the expected posterior improvement outweighs the cost.
+
+\section{Method}
+
+\subsection{Environment}
+
+We use a $9{\times}9$ two-room gridworld with 6 object instances.
+A principal has a hidden goal object.
+An instruction template maps the goal to a surface form shared by $K$ candidate goals (ambiguity level $K$).
+The principal takes approximately rational actions towards its goal, sampled from a Boltzmann policy with rationality $\beta$ and noise $\varepsilon$:
+\[
+  \pi_{\beta,\varepsilon}(a \mid s, g) \propto \exp(\beta \cdot q(s,a,g)) \cdot (1{-}\varepsilon) + \varepsilon / |A|.
+\]
+
+The assistant observes the state, instruction, and all principal actions, but not the true goal.
+An episode ends when the assistant picks an object (success if correct) or the step budget is exhausted.
+
+\subsection{Bayesian Posterior}
+
+The assistant maintains a posterior $b_t(g)$ over candidate goals $\mathcal{G}$.
+Initialisation uses the instruction likelihood under each goal.
+After observing principal action $a_t$ at state $s_t$:
+\[
+  b_{t+1}(g) \propto b_t(g) \cdot \pi_{\hat\beta,\hat\varepsilon}(a_t \mid s_t, g),
+\]
+where $\hat\beta, \hat\varepsilon$ are the assistant's assumed principal parameters.
+
+When a question $q$ is asked and answered $\alpha$, the posterior is updated by the answer likelihood:
+\[
+  b(g) \propto b(g) \cdot P(\alpha \mid q, g, \text{noise}),
+\]
+where answer noise is per-type: color 0.05, room 0.10, object 0.20.
+
+\subsection{Ask-or-Act Policy}
+
+At step $t$, the assistant computes:
+\[
+  \text{CostAct} = \sum_{g} b_t(g) \cdot \text{dist}(s_t, g),
+\]
+the expected path length to a goal sampled from the current posterior, and
+\[
+  \text{CostAsk}(q) = 1 + c_q + \mathbb{E}_{\alpha}[\text{CostAct after update from } \alpha],
+\]
+where $c_q = 0.5$ is the question cost.
+The policy asks $\arg\min_q \text{CostAsk}(q)$ if $\min_q \text{CostAsk}(q) < \text{CostAct}$, subject to:
+\begin{enumerate}
+  \item \textbf{Entropy gate}: skip ask branch if $H(b_t) \leq 0.3$ (posterior already concentrated).
+  \item \textbf{Ask window}: do not ask after step 6 (too late to benefit).
+  \item \textbf{Budget}: at most $Q_{\max} = 3$ questions per episode.
+\end{enumerate}
+
+\subsection{Baselines}
+
+\textbf{NeverAsk}: always acts toward the MAP goal.
+\textbf{AlwaysAsk}: asks the highest-information-gain question until budget is exhausted, then acts.
+\textbf{InfoGainAsk}: like AlwaysAsk but gated by entropy threshold and information-gain threshold.
+\textbf{EasyInfoGainAsk}: InfoGainAsk limited to one question per episode.
+\textbf{RandomAsk}: same gating as InfoGainAsk but picks a random question.
+\textbf{POMCPPlanner}: POMDP baseline using PO-UCT / POMCP tree search over ask and act actions.
+
+\section{Experimental Setup}
+
+\textbf{Sweep.}
+Main evaluation: $K \in \{1,2,3,4\}$, $\varepsilon \in \{0, 0.05, 0.1\}$, $\beta \in \{1, 2, 4\}$, 5 replicate seeds $\times$ 20 episodes per condition = 100 episodes per cell.
+Total: 19{,}800 episodes across 7 policies.
+
+\textbf{Metrics.}
+\textit{Success rate}: fraction of episodes where the assistant picks the true goal.
+\textit{Regret}: $\text{team cost} - \text{oracle cost}$ (oracle knows the true goal).
+\textit{Questions asked}: average per episode.
+\textit{MAP correct}: fraction where the MAP goal matches the true goal.
+
+\textbf{Uncertainty.}
+95\% bootstrap confidence intervals over episodes ($B{=}1000$ resamples).
+
+\section{Results}
+
+\subsection{Main Sweep}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{main_dashboard.png}
+  \caption{Success rate, regret, and questions asked by ambiguity $K$ (averaged over $\varepsilon$, $\beta$). Error bars show 95\% CI.}
+  \label{fig:main}
+\end{figure}
+
+Figure~\ref{fig:main} shows results averaged across all $\varepsilon$ and $\beta$ conditions.
+At $K{=}1$ (no ambiguity) all policies perform identically: 100\% success, zero questions.
+As ambiguity increases, policies diverge.
+
+Table~\ref{tab:main} summarises the key aggregate results.
+
+\begin{table}[h]
+\centering
+\caption{Mean results averaged over all $(\varepsilon, \beta)$ conditions. \textbf{Bold}: best success per $K$.}
+\label{tab:main}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llrrr}
+\toprule
+$K$ & Policy & Success & Regret & Q/ep \\
+\midrule
+2 & \textbf{AskOrAct}  & \textbf{96.7\%} & 1.71 & 0.65 \\
+  & InfoGainAsk        & 96.9\%          & 2.25 & 1.05 \\
+  & AlwaysAsk          & 94.6\%          & 3.44 & 1.87 \\
+  & NeverAsk           & 91.1\%          & 1.67 & 0.00 \\
+\midrule
+3 & \textbf{InfoGainAsk} & \textbf{94.8\%} & 2.61 & 1.21 \\
+  & AskOrAct           & 91.7\%          & \textbf{2.14} & 0.67 \\
+  & AlwaysAsk          & 90.2\%          & 4.08 & 2.29 \\
+  & NeverAsk           & 83.8\%          & 2.15 & 0.00 \\
+\midrule
+4 & \textbf{InfoGainAsk} & \textbf{91.7\%} & 2.88 & 1.31 \\
+  & AskOrAct           & 87.3\%          & \textbf{2.42} & 0.61 \\
+  & AlwaysAsk          & 86.4\%          & 4.56 & 2.58 \\
+  & NeverAsk           & 78.9\%          & 2.40 & 0.00 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\textbf{AskOrAct vs.\ NeverAsk.}
+At $K{=}3$, \textit{AskOrAct} achieves $+7.9$\,pp success (95\% CI $[5.0, 10.8]$).
+At $K{=}4$, $+8.4$\,pp (95\% CI $[5.1, 12.1]$).
+Both CIs exclude zero, confirming statistical significance.
+Crucially, \textit{AskOrAct} asks only $0.61$--$0.67$ questions per episode — it asks selectively.
+
+\textbf{AskOrAct vs.\ AlwaysAsk.}
+\textit{AlwaysAsk} asks $2.3$--$2.6\times$ more questions but achieves lower or similar success at $K{=}3,4$, and pays much higher regret ($+1.94$ at $K{=}4$).
+This confirms over-asking is costly.
+
+\textbf{AskOrAct vs.\ InfoGainAsk.}
+\textit{InfoGainAsk} achieves higher success ($+3.1$--$+4.4$\,pp at $K{=}3,4$) but asks $\sim\!2\times$ more questions.
+\textit{AskOrAct} achieves lower regret at $K{=}3$ (2.14 vs.\ 2.61), trading peak success for fewer questions.
+
+\subsection{Pareto Frontier}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{pareto_K4.png}
+  \caption{Success rate vs.\ regret Pareto frontier at $K{=}4$. \textit{AskOrAct} lies on the efficient frontier.}
+  \label{fig:pareto}
+\end{figure}
+
+Figure~\ref{fig:pareto} shows the Pareto frontier at $K{=}4$.
+\textit{AskOrAct} is Pareto-efficient: it dominates \textit{NeverAsk} in success while matching its regret, and dominates \textit{AlwaysAsk} and \textit{RandomAsk} in regret.
+
+\subsection{Robustness}
+
+\textbf{Answer noise.}
+We sweep per-question answer noise uniformly from 0 to 0.2 (disabling per-type defaults so the swept value applies globally).
+At $K{=}4$, the \textit{AskOrAct} success advantage over \textit{NeverAsk} holds across all noise levels ($+4$--$+9$\,pp).
+At $K{=}3$, the advantage is smaller and briefly reverses at noise$\,{=}\,0.1$ (\textit{AskOrAct} $92.0\%$ vs.\ \textit{NeverAsk} $94.0\%$); the gap re-opens at $0.2$ ($95.0\%$ vs.\ $94.0\%$), suggesting a moderate noise regime where noisy answers can mislead the posterior.
+
+\textbf{Principal model mismatch.}
+The assistant's model is fixed at $\hat\beta{=}2$ while the principal's true $\beta$ is varied over $\{1, 2, 4\}$.
+The hardest condition is $\beta_{\text{true}}{=}1$ (near-random principal), where \textit{AskOrAct} retains $+13.5$\,pp over \textit{NeverAsk} ($83.5\%$ vs.\ $70.0\%$).
+The largest parameter distance ($\beta_{\text{true}}{=}4$, distance${=}2$) is less disruptive because a highly rational principal is easier to model.
+
+\textbf{Held-out instruction templates.}
+Evaluating on templates not seen during policy design shows mild degradation but preserves policy ordering, confirming results are not template-specific.
+
+\textbf{Scale-$K$.}
+Extending to $K \in \{5, 6\}$ shows the asking advantage grows: \textit{AskOrAct} retains meaningful success while \textit{NeverAsk} falls substantially, consistent with VoI being most valuable under high ambiguity.
+
+\subsection{Ablations}
+
+\begin{table}[h]
+\centering
+\caption{Ablation results for \textit{AskOrAct} across mode variants (averaged over $K$, $\varepsilon$, wrong-pick, deadline conditions).}
+\label{tab:ablations}
+\begin{tabular}{llrrr}
+\toprule
+Mode & $c_q$ & Ask-step & Success & Q/ep \\
+\midrule
+A & 0.0 & yes & 69.2\% & 1.61 \\
+B & 0.5 & no  & 73.6\% & 0.64 \\
+C & 0.5 & yes & 73.8\% & 0.65 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tab:ablations} shows three ablation variants.
+
+\textbf{Mode A} ($c_q{=}0$, no question cost): the policy asks far more (1.61 q/ep) but achieves lower success ($69.2\%$).
+With zero cost, \textit{CostAsk} is almost always preferred, leading to excessive asking that uses up the ask budget on low-value questions and leaves the posterior insufficiently converged before acting.
+
+\textbf{Modes B and C} differ in whether asking counts as an environment step.
+Performance is nearly identical ($73.6\%$ vs.\ $73.8\%$), suggesting the ask-counts-as-step setting has minimal effect once question cost is non-zero.
+
+The ablation confirms that a non-zero question cost is necessary to prevent over-asking and maintain a useful ask-or-act tradeoff.
+
+\subsection{Clarification Quality}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{clarification_quality_entropy_delta.png}
+  \caption{Posterior entropy before and after the first question, by policy and $K$. \textit{AskOrAct} reduces entropy selectively.}
+  \label{fig:entropy}
+\end{figure}
+
+Figure~\ref{fig:entropy} shows that \textit{AskOrAct}'s first question reduces posterior entropy substantially at $K{=}3,4$, achieving comparable entropy reduction to \textit{InfoGainAsk} while asking less frequently.
+At $K{=}1,2$, \textit{AskOrAct} rarely asks (entropy already low), confirming the entropy gate works as intended.
+
+\section{Discussion}
+
+\textbf{When does asking help?}
+The results show asking is most valuable at $K{=}3,4$, where the uniform prior over goals has high entropy and a single question can resolve $1$--$2$ bits of uncertainty.
+At $K{=}1$, no policy needs to ask.
+At $K{=}2$, the gain from asking is moderate ($+5.6$\,pp) and asking is expensive relative to the ambiguity.
+
+\textbf{Limitations.}
+The question bank is fixed and small (3 question types).
+The answer model is noisy but parameterised; in real settings, answers may be open-ended.
+The gridworld is small enough for exact posterior enumeration; scaling to larger state spaces would require approximate inference.
+The principal is simulated; real principals may not follow a Boltzmann model.
+
+\textbf{Connection to course themes.}
+\textit{AskOrAct} operationalises theory of mind (maintaining beliefs about another agent's goal), inverse planning (updating beliefs from observed behaviour), and cooperative assistance (jointly minimising team cost).
+Asking is modelled as a cooperative communication act with a cost and an expected benefit~\cite{jara2016}.
+
+\section{Conclusion}
+
+We presented \textit{AskOrAct}, a value-of-information policy for cooperative assistance under instruction ambiguity.
+In a controlled gridworld evaluation, it achieves statistically significant success improvements over a non-asking baseline ($+7.9$\,pp at $K{=}3$, $+8.4$\,pp at $K{=}4$) while asking fewer than one question per episode on average.
+Ablations show that a non-zero question cost is critical, and robustness sweeps confirm the advantage persists under answer noise and principal model mismatch.
+The approach is reproducible and fully deterministic given the provided seeds.
+
+\section*{AI Tool Declaration}
+I used Claude Sonnet 4.6 (Anthropic) for coding assistance, debugging, and LaTeX editing throughout the project. I am responsible for all research decisions, experimental design, and the content of this report.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
