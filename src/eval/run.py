@@ -167,11 +167,11 @@ def _run_episode_impl(policy_name, seed, config_dict):
             "terminated_by_wrong_pick": False,
             "failure_by_wrong_pick": False,
             "failure_by_timeout": False,
-            "entropy_before_first_ask": 0.0,
-            "entropy_after_first_ask": 0.0,
-            "effective_goal_count_before": 0.0,
-            "effective_goal_count_after": 0.0,
-            "ig_of_first_asked_question": 0.0,
+            "entropy_before_first_ask": float("nan"),
+            "entropy_after_first_ask": float("nan"),
+            "effective_goal_count_before": float("nan"),
+            "effective_goal_count_after": float("nan"),
+            "ig_of_first_asked_question": float("nan"),
             "template_id": -1,
         }
 
@@ -209,7 +209,8 @@ def _run_episode_impl(policy_name, seed, config_dict):
         principal_action = sample_principal_action(
             state, true_goal_obj_id, env, rng, principal_beta, principal_eps
         )
-        principal_action_history.append(principal_action)
+        # NOTE: principal_action_history is appended only after a real env step,
+        # not on ask turns, so the ask-window counter reflects actual progression.
 
         policy_kw = {
             "env": env,
@@ -284,6 +285,7 @@ def _run_episode_impl(policy_name, seed, config_dict):
                     steps += 1
                 q_tuple = next((q for q in list_questions() if q[0] == q_id), None)
                 if q_tuple is None:
+                    print(f"[WARN] question id '{q_id}' not found in list_questions(); skipping")
                     continue
                 if not first_ask_recorded:
                     entropy_before_first_ask, effective_goal_count_before = _clarification_snapshot(
@@ -317,6 +319,7 @@ def _run_episode_impl(policy_name, seed, config_dict):
                 continue
 
         assistant_action = out
+        principal_action_history.append(principal_action)
         update_posterior(
             posterior, state, principal_action, candidate_goals, env, assistant_beta, assistant_eps
         )
@@ -677,6 +680,11 @@ def run_robust_answer_noise(output_csv="results/metrics_robust_answer_noise.csv"
     Focused on K={3,4} for runtime.
     """
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    # Disable per-type config overrides so the swept answer_noise values are
+    # actually used by _noise_for_question() instead of being shadowed by
+    # ANSWER_NOISE_BY_QTYPE (which covers all question types).
+    _saved_by_qtype = getattr(config, "ANSWER_NOISE_BY_QTYPE", {})
+    config.ANSWER_NOISE_BY_QTYPE = {}
     ks = [3, 4]
     answer_noises = [0.0, 0.1, 0.2]
     principal_eps = config.DEFAULT_EPS
@@ -686,79 +694,82 @@ def run_robust_answer_noise(output_csv="results/metrics_robust_answer_noise.csv"
     reps = list(getattr(config, "REPL_SEEDS", [0]))
     n_episodes_per_seed = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
 
-    rows = []
-    for K in ks:
-        for answer_noise in answer_noises:
-            for policy in config.POLICIES:
-                for rep_seed in reps:
-                    for episode_id in range(n_episodes_per_seed):
-                        seed = _sweep_env_seed(
-                            config.BASE_SEED + 700000, rep_seed, K, principal_eps, principal_beta, episode_id
-                        )
-                        cfg = {
-                            "ambiguity_K": K,
-                            "principal_eps": principal_eps,
-                            "assistant_eps": assistant_eps,
-                            "principal_beta": principal_beta,
-                            "assistant_beta": assistant_beta,
-                            "answer_noise": answer_noise,
-                        }
-                        m = _run_episode_impl(policy, seed, cfg)
-                        rows.append({
-                            "policy": policy,
-                            "K": K,
-                            "answer_noise": answer_noise,
-                            "principal_eps": principal_eps,
-                            "assistant_eps": assistant_eps,
-                            "principal_beta": principal_beta,
-                            "assistant_beta": assistant_beta,
-                            "rep_seed": int(rep_seed),
-                            "episode_id": int(episode_id),
-                            "success": m["success"],
-                            "steps": m["steps"],
-                            "questions_asked": m["questions_asked"],
-                            "regret": m["regret"],
-                            "map_correct": m.get("final_map_correct", False),
-                            "episode_max_steps": m.get("episode_max_steps", config.MAX_STEPS),
-                            "failure_by_wrong_pick": m.get("failure_by_wrong_pick", False),
-                            "failure_by_timeout": m.get("failure_by_timeout", False),
-                            "entropy_before_first_ask": m.get("entropy_before_first_ask", 0.0),
-                            "entropy_after_first_ask": m.get("entropy_after_first_ask", 0.0),
-                            "effective_goal_count_before": m.get("effective_goal_count_before", 0.0),
-                            "effective_goal_count_after": m.get("effective_goal_count_after", 0.0),
-                            "ig_of_first_asked_question": m.get("ig_of_first_asked_question", 0.0),
-                        })
+    try:
+        rows = []
+        for K in ks:
+            for answer_noise in answer_noises:
+                for policy in config.POLICIES:
+                    for rep_seed in reps:
+                        for episode_id in range(n_episodes_per_seed):
+                            seed = _sweep_env_seed(
+                                config.BASE_SEED + 700000, rep_seed, K, principal_eps, principal_beta, episode_id
+                            )
+                            cfg = {
+                                "ambiguity_K": K,
+                                "principal_eps": principal_eps,
+                                "assistant_eps": assistant_eps,
+                                "principal_beta": principal_beta,
+                                "assistant_beta": assistant_beta,
+                                "answer_noise": answer_noise,
+                            }
+                            m = _run_episode_impl(policy, seed, cfg)
+                            rows.append({
+                                "policy": policy,
+                                "K": K,
+                                "answer_noise": answer_noise,
+                                "principal_eps": principal_eps,
+                                "assistant_eps": assistant_eps,
+                                "principal_beta": principal_beta,
+                                "assistant_beta": assistant_beta,
+                                "rep_seed": int(rep_seed),
+                                "episode_id": int(episode_id),
+                                "success": m["success"],
+                                "steps": m["steps"],
+                                "questions_asked": m["questions_asked"],
+                                "regret": m["regret"],
+                                "map_correct": m.get("final_map_correct", False),
+                                "episode_max_steps": m.get("episode_max_steps", config.MAX_STEPS),
+                                "failure_by_wrong_pick": m.get("failure_by_wrong_pick", False),
+                                "failure_by_timeout": m.get("failure_by_timeout", False),
+                                "entropy_before_first_ask": m.get("entropy_before_first_ask", 0.0),
+                                "entropy_after_first_ask": m.get("entropy_after_first_ask", 0.0),
+                                "effective_goal_count_before": m.get("effective_goal_count_before", 0.0),
+                                "effective_goal_count_after": m.get("effective_goal_count_after", 0.0),
+                                "ig_of_first_asked_question": m.get("ig_of_first_asked_question", 0.0),
+                            })
 
-    with open(output_csv, "w", newline="") as f:
-        w = csv.DictWriter(
-            f,
-            fieldnames=[
-                "policy",
-                "K",
-                "answer_noise",
-                "principal_eps",
-                "assistant_eps",
-                "principal_beta",
-                "assistant_beta",
-                "rep_seed",
-                "episode_id",
-                "success",
-                "steps",
-                "questions_asked",
-                "regret",
-                "map_correct",
-                "episode_max_steps",
-                "failure_by_wrong_pick",
-                "failure_by_timeout",
-                "entropy_before_first_ask",
-                "entropy_after_first_ask",
-                "effective_goal_count_before",
-                "effective_goal_count_after",
-                "ig_of_first_asked_question",
-            ],
-        )
-        w.writeheader()
-        w.writerows(rows)
+        with open(output_csv, "w", newline="") as f:
+            w = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "policy",
+                    "K",
+                    "answer_noise",
+                    "principal_eps",
+                    "assistant_eps",
+                    "principal_beta",
+                    "assistant_beta",
+                    "rep_seed",
+                    "episode_id",
+                    "success",
+                    "steps",
+                    "questions_asked",
+                    "regret",
+                    "map_correct",
+                    "episode_max_steps",
+                    "failure_by_wrong_pick",
+                    "failure_by_timeout",
+                    "entropy_before_first_ask",
+                    "entropy_after_first_ask",
+                    "effective_goal_count_before",
+                    "effective_goal_count_after",
+                    "ig_of_first_asked_question",
+                ],
+            )
+            w.writeheader()
+            w.writerows(rows)
+    finally:
+        config.ANSWER_NOISE_BY_QTYPE = _saved_by_qtype
     print("Wrote", output_csv, f"({len(rows)} rows)")
     return rows
 

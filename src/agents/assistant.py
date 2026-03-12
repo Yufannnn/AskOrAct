@@ -176,7 +176,7 @@ def best_question_info_gain(env, posterior, candidate_goals, answer_noise, asked
 
 
 def best_question_cost(state, posterior, candidate_goals, env, answer_noise, question_cost=None, asked_qnames=None):
-    question_cost = question_cost or config.QUESTION_COST
+    question_cost = question_cost if question_cost is not None else config.QUESTION_COST
     asked = set(asked_qnames or [])
     best_q = None
     best_cost = float("inf")
@@ -204,7 +204,7 @@ def CostAct(state, posterior, candidate_goals, env, answer_noise):
 
 def CostAsk(state, posterior, candidate_goals, env, answer_noise, question_cost=None, asked_qnames=None):
     if not candidate_goals or not posterior:
-        return 1.0 + (question_cost or config.QUESTION_COST)
+        return 1.0 + (question_cost if question_cost is not None else config.QUESTION_COST)
     _, best_cost = best_question_cost(
         state=state,
         posterior=posterior,
@@ -228,8 +228,8 @@ def policy_never_ask(env, state, instruction_u, posterior, candidate_goals, prin
 def policy_always_ask(env, state, instruction_u, posterior, candidate_goals, principal_action_history,
                       questions_asked, rng, beta, eps, answer_noise, max_questions=None,
                       entropy_threshold=None, asked_qnames=None, **kwargs):
-    max_questions = max_questions or config.MAX_QUESTIONS
-    entropy_threshold = entropy_threshold or config.ENTROPY_THRESHOLD
+    max_questions = max_questions if max_questions is not None else config.MAX_QUESTIONS
+    entropy_threshold = entropy_threshold if entropy_threshold is not None else config.ENTROPY_THRESHOLD
     if not candidate_goals or not posterior:
         return "stay", posterior
     ent = posterior_entropy(posterior)
@@ -252,8 +252,8 @@ def policy_always_ask(env, state, instruction_u, posterior, candidate_goals, pri
 def policy_ask_or_act(env, state, instruction_u, posterior, candidate_goals, principal_action_history,
                       questions_asked, rng, beta, eps, answer_noise, question_cost=None,
                       max_questions=None, entropy_gate=None, ask_window=None, asked_qnames=None, **kwargs):
-    question_cost = question_cost or config.QUESTION_COST
-    max_questions = max_questions or config.MAX_QUESTIONS
+    question_cost = question_cost if question_cost is not None else config.QUESTION_COST
+    max_questions = max_questions if max_questions is not None else config.MAX_QUESTIONS
     entropy_gate = entropy_gate if entropy_gate is not None else config.ENTROPY_GATE
     ask_window = ask_window if ask_window is not None else config.ASK_WINDOW
     if not candidate_goals or not posterior:

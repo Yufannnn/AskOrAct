@@ -17,3 +17,13 @@ __pycache__/
 .idea/
 .vscode/
 *.swp
+
+# LaTeX build artifacts
+CS6208_Project/*.aux
+CS6208_Project/*.bbl
+CS6208_Project/*.blg
+CS6208_Project/*.fdb_latexmk
+CS6208_Project/*.fls
+CS6208_Project/*.log
+CS6208_Project/*.out
+CS6208_Project/*.synctex.gz

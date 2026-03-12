@@ -41,10 +41,13 @@ def principal_action_probs(state, g, env, beta, eps):
                 next_pos = (nr, nc)
         d = grid_distance(N, walls, next_pos, goal_pos)
         dists[a] = d
-    max_lp = max(-beta * dists[a] for a in actions)
+    finite_lps = [-beta * dists[a] for a in actions if dists[a] != float("inf")]
+    if not finite_lps:
+        return {a: 1.0 / len(actions) for a in actions}
+    max_lp = max(finite_lps)
     probs = {}
     for a in actions:
-        lp = -beta * dists[a]
+        lp = -beta * dists[a] if dists[a] != float("inf") else -1e9
         probs[a] = np.exp(lp - max_lp)
     Z = sum(probs.values())
     for a in actions:

@@ -14,16 +14,14 @@ AskOrAct task runner
 
 Usage:
   ./run.sh setup             (create .venv + install deps)
-  ./run.sh quick-demo        (full quick demo with ask/act)
-  ./run.sh milestone-demo    (Feb13+20 demo)
-  ./run.sh milestone-report  (Feb13+20 report artifacts)
-  ./run.sh sweep             (main sweep + main dashboard)
-  ./run.sh ablations         (ablation sweep + ablation dashboard)
-  ./run.sh robustness        (focused K=3,4 robustness sweeps + delta plots)
-  ./run.sh qdifficulty       (focused question-difficulty sweep + plots)
-  ./run.sh generalization    (held-out template split + scale-K stress tests + plots)
-  ./run.sh report            (regenerate report + dashboards from CSVs)
-  ./run.sh package           (build submission package + zip in results)
+  ./run.sh quick-demo        (single episode demo with ASCII render)
+  ./run.sh sweep             (main sweep → results/metrics.csv)
+  ./run.sh ablations         (ablation grid → results/metrics_ablations.csv)
+  ./run.sh robustness        (answer-noise + mismatch sweeps + delta plots)
+  ./run.sh qdifficulty       (question-difficulty sweep + plots)
+  ./run.sh generalization    (held-out templates + scale-K stress test)
+  ./run.sh report            (regenerate full_report.md + all dashboards)
+  ./run.sh package           (build results/submission_package.zip)
   ./run.sh all               (sweep + ablations + robustness + report + package)
 EOF
 }
@@ -81,17 +79,6 @@ quick_demo() {
   "$PYTHON_VENV" scripts/quick_demo.py
 }
 
-milestone_demo() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/run_milestone_feb13_feb20.py
-}
-
-milestone_report() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/run_milestone_feb13_feb20.py --report
-  echo "Report: results/milestone_feb13_feb20_report.md"
-}
-
 sweep() {
   ensure_venv
   "$PYTHON_VENV" scripts/run_sweep.py
@@ -139,8 +126,6 @@ case "$cmd" in
   help|-h|--help) print_help ;;
   setup) setup ;;
   quick-demo) quick_demo ;;
-  milestone-demo) milestone_demo ;;
-  milestone-report) milestone_report ;;
   sweep) sweep ;;
   ablations) ablations ;;
   robustness) robustness ;;

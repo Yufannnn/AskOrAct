@@ -1,0 +1,99 @@
+\documentclass[10pt,twocolumn]{article}
+
+\usepackage[margin=0.72in]{geometry}
+\usepackage{times}
+\usepackage{microtype}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{booktabs}
+
+\setlength{\columnsep}{0.25in}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+\begin{document}
+
+\begin{center}
+{\Large \textbf{CS6208 Project Proposal}}\\
+\vspace{2pt}
+{\large \textbf{Ask or Act for Cooperative Assistance via Inverse Planning}}\\
+\vspace{4pt}
+\textbf{Team member} Zhu Yufan A0238993J
+\end{center}
+
+\vspace{-6pt}
+
+\section*{Overview}
+People often help by deciding whether to act now or ask a clarifying question when a request is unclear.
+We will build a cooperative assistant that chooses between a helpful task action and a clarifying question action.
+
+We use a small cooperative gridworld. A principal has a hidden goal, such as which object to fetch or which location to reach.
+The principal provides a short instruction that can be ambiguous, then takes action.
+The assistant observes the state, the instruction, and the principal's behavior, and decides whether to ask or act.
+
+\textbf{Research question.}
+Under instruction ambiguity and hidden goals, can an inverse planning assistant that optimizes the value of information reduce team cost compared with assistants that never ask, always ask, or follow instructions literally?
+
+\textbf{Approach.}
+We model the principal as approximately rational with goal dependent cost.
+We infer a posterior over goals from the instruction and observed actions.
+At each step, the assistant compares the expected team cost of acting now versus asking a question, where asking updates the posterior through an answer likelihood model.
+The assistant chooses the option with lower expected cost.
+
+\textbf{Evaluation.}
+We measure task success rate, total steps, number of questions asked, and regret relative to an oracle that knows the true goal.
+We vary ambiguity by controlling how many candidate goals match the same instruction and we test robustness under noisy principal actions.
+
+\section*{Relation to course}
+This project follows the seminar theme that humans and machines can be modeled as approximately rational agents with probabilistic models of the social world.
+The assistant maintains beliefs about the principal goal and updates them from behavior and language, which is theory of mind.
+Goal inference is done by inverting a rational action model, which is inverse planning.
+The assistant selects actions that reduce expected joint cost under uncertainty, which is cooperative assistance.
+Asking questions is treated as a cooperative communication act with a cost and an expected benefit, which connects assistance and communication.
+The objective is to help the principal achieve the principal goal, which connects to human-aligned machine behavior.
+
+\section*{Background and related work}
+Inverse planning models treat observed behavior as evidence for latent goals and plans, enabling action understanding through probabilistic inference.
+We build on the rational action and inference perspective in Baker et al.\ \cite{baker2009}.
+We also draw from utility-based accounts of social inference that connect effort and reward to goal attribution in Jara Ettinger et al.\ \cite{jara2016}.
+Our setting is closely connected to cooperative value inference formulations where an agent must infer what a person wants in order to help, as in cooperative inverse reinforcement learning by Hadfield Menell et al.\ \cite{hadfield2016cirl}.
+A nearby recent system that motivates combining language and action evidence for goal inference is cooperative language guided inverse planning for instruction following and goal assistance by Tan et al.\ \cite{tan2024clips}.
+Our contribution is a controlled ask or act evaluation that isolates when question asking improves cooperation under ambiguity.
+
+\section*{Project plan}
+We will implement a reproducible evaluation suite with fixed seeds and scripted principal policies.
+
+\begin{center}
+\begin{tabular}{p{0.18\columnwidth} p{0.78\columnwidth}}
+\toprule
+\textbf{Date} & \textbf{Milestone} \\
+\midrule
+Feb 13 & Implement gridworld tasks, goal sets, ambiguous instruction templates, and scripted principals. \\
+Feb 20 & Implement posterior inference over goals from actions and instruction, and implement an act only helper policy. \\
+Feb 27 & Implement a question set and an answer model, then implement the ask or act decision rule using expected team cost. \\
+Mar 13 & Run experiments across ambiguity and noise settings, produce plots and tables, and write the progress report content. \\
+Apr 10 & Add ablations and failure case analysis, finalize report or notebook, and prepare the presentation. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section*{Risks and mitigation}
+\textbf{Inference cost.}
+If the hypothesis space grows, inference may become slow.
+We will keep the environment small and use exact enumeration over a small goal set, or particle inference with pruning.
+
+\textbf{Question design quality.}
+Questions might be too informative or not informative enough.
+We will use a structured family of ambiguity settings and design questions that target discriminating features such as color, room, or object type.
+
+\textbf{Language coverage.}
+Template language may be limited.
+We will start with templates for controlled experiments, then optionally add offline paraphrases for robustness tests.
+
+\section*{AI tool declaration}
+I used ChatGPT GPT-5.2 to brainstorm project ideas to choose from and refine the proposal text. I am responsible for the content and quality of the submitted work.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}
