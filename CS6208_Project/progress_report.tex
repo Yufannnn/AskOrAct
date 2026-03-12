@@ -13,7 +13,7 @@
 
 \setlength{\columnsep}{0.25in}
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{4pt}
+\setlength{\parskip}{3pt}
 
 \begin{document}
 
@@ -69,7 +69,7 @@ At $K \geq 3$ instruction ambiguity becomes genuine and policies diverge substan
 
 \textit{AskOrAct} outperforms \textit{NeverAsk} with statistical significance at both high-ambiguity levels: $+7.9$\,pp at $K{=}3$ (95\% CI $[5.0, 10.8]$) and $+8.4$\,pp at $K{=}4$ (95\% CI $[5.1, 12.1]$), while asking only 0.6--0.7 questions per episode on average.
 Both confidence intervals exclude zero, confirming the effect is not due to sampling noise.
-\textit{AlwaysAsk} asks 3--4$\times$ more per episode but achieves similar or lower success and substantially higher regret ($+2.1$ units at $K{=}4$), confirming that over-asking is costly.
+\textit{AlwaysAsk} asks 3--4$\times$ more per episode but achieves similar or lower success and $+2.1$ higher regret at $K{=}4$, confirming that over-asking is costly.
 
 \begin{table}[h]
   \centering\small
@@ -104,46 +104,33 @@ Both confidence intervals exclude zero, confirming the effect is not due to samp
 \end{table}
 
 \textbf{Robustness (positive and negative findings).}
-Answer-noise robustness sweeps show the \textit{AskOrAct} advantage is retained at $K{=}4$ across all noise levels ($+4$--$+9$\,pp), but the $K{=}3$ advantage briefly reverses at noise$\,{=}\,0.1$ (\textit{AskOrAct} 92.0\% vs.\ \textit{NeverAsk} 94.0\%) — a negative finding indicating that moderately noisy answers can mislead the posterior and cause unnecessary questions.
-Under principal model mismatch, \textit{AskOrAct} retains a $+13.5$\,pp advantage even when the principal acts near-randomly ($\beta_{\text{true}}{=}1$ vs.\ $\hat\beta{=}2$).
-The ablation confirms that a non-zero question cost is essential: setting $c_q{=}0$ causes the policy to over-ask (1.61 vs.\ 0.65 questions/ep) and reduces success from 73.8\% to 69.2\%.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\columnwidth]{pareto_K4.png}
-  \caption{Success--regret Pareto frontier at $K{=}4$. \textit{AskOrAct} is Pareto-efficient: it dominates \textit{NeverAsk} in success and \textit{AlwaysAsk}/\textit{RandomAsk} in regret.}
-  \label{fig:pareto}
-\end{figure}
-
-Figure~\ref{fig:pareto} shows the Pareto frontier at $K{=}4$.
-\textit{AskOrAct} lies on the efficient frontier, dominating \textit{NeverAsk} in success and \textit{AlwaysAsk} and \textit{RandomAsk} in regret, while \textit{InfoGainAsk} achieves slightly higher success at the cost of more questions and higher regret.
+Answer-noise sweeps show the \textit{AskOrAct} advantage holds at $K{=}4$ across all noise levels ($+4$--$+9$\,pp), but reverses briefly at $K{=}3$, noise$\,{=}\,0.1$ (92.0\% vs.\ 94.0\% for \textit{NeverAsk}) — noisy answers can mislead the posterior.
+Under principal model mismatch, \textit{AskOrAct} retains $+13.5$\,pp even when the principal acts near-randomly ($\beta_{\text{true}}{=}1$ vs.\ $\hat\beta{=}2$).
+The ablation confirms a non-zero question cost is essential: $c_q{=}0$ causes over-asking (1.61 vs.\ 0.65 q/ep) and reduces success from 73.8\% to 69.2\%.
+On the success--regret Pareto frontier at $K{=}4$, \textit{AskOrAct} is efficient: it dominates \textit{NeverAsk} in success and \textit{AlwaysAsk}/\textit{RandomAsk} in regret.
 
 \section*{Key Plot Description for Final Report}
 
-\textbf{Figure~\ref{fig:main}} will appear as the central result figure.
-The horizontal axis is ambiguity level $K \in \{1,2,3,4\}$; the three vertically stacked panels show (top) success rate, (middle) regret, and (bottom) average questions asked per episode, with one bar group per policy and 95\% CI error bars.
-Readers learn: (a) all policies tie at $K{=}1$, validating the sanity baseline; (b) the success gap between \textit{AskOrAct} and \textit{NeverAsk} widens monotonically as ambiguity increases; (c) the contrast between panels (top) and (bottom) shows that \textit{AlwaysAsk} and \textit{RandomAsk} ask far more questions without a commensurate success gain.
-The three-panel layout allows readers to see the complete tradeoff in a single glance and directly supports the paper's central claim: selective asking captures most of the benefit of asking at a fraction of the cost.
+\textbf{Figure~\ref{fig:main}} is the central result figure.
+The horizontal axis is ambiguity level $K \in \{1,2,3,4\}$; three stacked panels show (top) success rate, (middle) regret, and (bottom) average questions per episode, with 95\% CI error bars.
+Readers see: (a) all policies tie at $K{=}1$ (sanity check); (b) the success gap between \textit{AskOrAct} and \textit{NeverAsk} widens with ambiguity; (c) \textit{AlwaysAsk}/\textit{RandomAsk} ask far more questions without a commensurate gain.
 
-\textbf{Aggregate delta table} (new in final report): rows are $K \in \{2,3,4\}$; columns are $\Delta$Success (\textit{AskOrAct}$-$\textit{NeverAsk}) with 95\% CI, and $\Delta$Regret (\textit{AskOrAct}$-$\textit{AlwaysAsk}) with questions/ep.
-This table will let readers immediately see at which ambiguity levels the improvement is statistically significant and what it costs in terms of extra questions per episode.
+An \textbf{aggregate delta table} (planned for final report) will have rows $K \in \{2,3,4\}$ and columns $\Delta$Success (\textit{AskOrAct}$-$\textit{NeverAsk}) with 95\% CI, and $\Delta$Regret (\textit{AskOrAct}$-$\textit{AlwaysAsk}) with questions/ep, letting readers see at a glance which improvements are statistically significant.
 
 \section*{Plan for Remaining Time}
 
 \textbf{Step 1 --- Failure-mode analysis} (\textit{by March 21}).
-Break down timeout failures versus wrong-pick failures per $(K, \varepsilon, \beta)$ for all policies.
-Pinpoint conditions where \textit{AskOrAct} regresses (notably $K{=}3$, noise$\,{=}\,0.1$) and determine whether failures arise from posterior misdirection via noisy answers, an exhausted question budget, or an overly restrictive ask window.
-Findings will feed directly into the final report's discussion and limitations sections.
+Break down timeout vs.\ wrong-pick failures per $(K,\varepsilon,\beta)$ for all policies.
+Pinpoint conditions where \textit{AskOrAct} regresses (notably $K{=}3$, noise$\,{=}\,0.1$) and determine whether failures stem from posterior misdirection, exhausted question budget, or an overly restrictive ask window.
 
 \textbf{Step 2 --- Final report} (\textit{by April 3}).
-Write the complete 4-page technical paper with introduction, related work, full method description (posterior update equations, VoI decision rule, gating conditions), experiments with aggregate tables and delta-CI analysis, ablation and robustness sections, discussion of limitations, and conclusion.
-All figures will be regenerated from the final corrected CSVs.
+Write the 4-page paper covering introduction, related work, method (posterior update, VoI rule, gating), experiments (aggregate tables, delta-CI analysis), ablations, robustness, and conclusion.
 
 \textbf{Step 3 --- Presentation} (\textit{by April 8}).
-Prepare 14 slides covering problem setup, method, main results, Pareto frontier, robustness, ablations, and limitations, with backup slides addressing likely Q\&A topics such as entropy gate sensitivity, question cost ablation, and scalability beyond $K{=}4$.
+Prepare 14 slides with backup slides for likely Q\&A topics (entropy gate sensitivity, question cost ablation, scalability to $K{>}4$).
 
 \textbf{Step 4 --- Submission package} (\textit{by April 10}).
-Run \texttt{./run.sh package} to build \texttt{submission\_package.zip} containing all data CSVs, figure PNGs, report PDFs, and a \texttt{REPRODUCE.txt} with exact commands to regenerate every result from scratch, verifiable against expected row-count checksums for all seven output files.
+Run \texttt{./run.sh package} to produce \texttt{submission\_package.zip} with all CSVs, plots, PDFs, and a \texttt{REPRODUCE.txt} with checksums for all seven output files.
 
 \section*{AI Tool Declaration}
 I used Claude Sonnet 4.6 (Anthropic) for coding assistance, debugging, and text editing throughout the project.
