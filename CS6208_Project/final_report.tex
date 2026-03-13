@@ -31,7 +31,7 @@
 We study cooperative assistance under instruction ambiguity: should a helper ask a clarifying question or act immediately?
 We implement a controlled gridworld in which an assistant infers a Bayesian posterior over a principal's hidden goal from an ambiguous instruction and observed actions, then decides whether to act or ask.
 Our \textit{AskOrAct} policy selects whichever option minimises expected team cost, using a value-of-information criterion.
-Across 19{,}800 episodes spanning ambiguity levels $K \in \{1,2,3,4\}$, rationality parameters, and principal noise, \textit{AskOrAct} achieves $+7.9$\,pp and $+8.4$\,pp higher success than a non-asking baseline at $K{=}3$ and $K{=}4$ (95\% CI both exclude zero), while asking only $0.6$--$0.7$ questions per episode.
+Across 25{,}200 evaluation episodes spanning ambiguity levels $K \in \{1,2,3,4\}$, rationality parameters, and principal noise, \textit{AskOrAct} achieves $+7.9$\,pp and $+8.4$\,pp higher success than a non-asking baseline at $K{=}3$ and $K{=}4$ (95\% CI both exclude zero), while asking only $0.6$--$0.7$ questions per episode.
 Robustness sweeps confirm the advantage persists under answer noise and principal model mismatch.
 Ablations reveal that a non-zero question cost and correct ask-window semantics are necessary for stable performance.
 \end{abstract}
@@ -50,7 +50,7 @@ The main contributions are:
 \begin{itemize}
   \item A reproducible cooperative gridworld benchmark with templated ambiguity and a Boltzmann principal model.
   \item A value-of-information ask-or-act policy with entropy gating, ask-window, and per-question cost.
-  \item A systematic evaluation across 7 policies, ablations, and robustness sweeps with 95\% bootstrap CIs.
+  \item A systematic evaluation across 5 core policies, plus targeted stronger baselines at $K{=}2$, ablations, and robustness sweeps with 95\% bootstrap CIs.
   \item An analysis of when asking helps and when it fails.
 \end{itemize}
 
@@ -128,12 +128,13 @@ The policy asks $\arg\min_q \text{CostAsk}(q)$ if $\min_q \text{CostAsk}(q) < \t
 \textbf{EasyInfoGainAsk}: InfoGainAsk limited to one question per episode.
 \textbf{RandomAsk}: same gating as InfoGainAsk but picks a random question.
 \textbf{POMCPPlanner}: POMDP baseline using PO-UCT / POMCP tree search over ask and act actions.
+All 7 policies are evaluated across all $(K,\varepsilon,\beta)$ cells.
 
 \section{Experimental Setup}
 
 \textbf{Sweep.}
-Main evaluation: $K \in \{1,2,3,4\}$, $\varepsilon \in \{0, 0.05, 0.1\}$, $\beta \in \{1, 2, 4\}$, 5 replicate seeds $\times$ 20 episodes per condition = 100 episodes per cell.
-Total: 19{,}800 episodes across 7 policies.
+Main evaluation: 7 policies $\times$ $K \in \{1,2,3,4\}$ $\times$ $\varepsilon \in \{0, 0.05, 0.1\}$ $\times$ $\beta \in \{1, 2, 4\}$, 5 replicate seeds $\times$ 20 episodes per condition = 100 episodes per cell.
+Total: 25{,}200 episodes.
 
 \textbf{Metrics.}
 \textit{Success rate}: fraction of episodes where the assistant picks the true goal.
@@ -170,8 +171,8 @@ Table~\ref{tab:main} summarises the key aggregate results.
 \toprule
 $K$ & Policy & Success & Regret & Q/ep \\
 \midrule
-2 & \textbf{AskOrAct}  & \textbf{96.7\%} & 1.71 & 0.65 \\
-  & InfoGainAsk        & 96.9\%          & 2.25 & 1.05 \\
+2 & AskOrAct           & 96.7\%          & 1.71 & 0.65 \\
+  & \textbf{InfoGainAsk} & \textbf{96.9\%} & 2.25 & 1.05 \\
   & AlwaysAsk          & 94.6\%          & 3.44 & 1.87 \\
   & NeverAsk           & 91.1\%          & 1.67 & 0.00 \\
 \midrule
