@@ -13,6 +13,8 @@ from src.eval.plots import (  # noqa: E402
     load_metrics,
     load_ablation_metrics,
     aggregate_by_condition,
+    plot_setup_overview,
+    plot_ask_or_act_pipeline,
     plot_main_dashboard,
     plot_ablations_dashboard,
     plot_clarification_quality_entropy_delta,
@@ -115,7 +117,9 @@ def generate_report():
         "- **Success requires assistant to pick the true goal object.**",
         "- **Episode deadline:** per-episode max steps = oracle shortest assistant path + margin.",
         "- **Cost rule:** `team_cost = steps + QUESTION_COST * questions_asked`; failed episodes use `team_cost = episode_max_steps + QUESTION_COST * questions_asked`.",
-        "- **Policies:** AskOrAct, NeverAsk, AlwaysAsk, InfoGainAsk, RandomAsk, POMCPPlanner.",
+        "- **Core main-sweep policies:** AskOrAct, NeverAsk, AlwaysAsk, InfoGainAsk, RandomAsk.",
+        "- **Targeted K=2-only baselines in the main sweep:** EasyInfoGainAsk, POMCPPlanner.",
+        "- **Scale-K / ablations / answer-noise sweeps** include the full 7-policy registry.",
         "- **Conditions:** Ambiguity K in {1, 2, 3, 4}, eps in {0.0, 0.05, 0.1}, beta in {1.0, 2.0, 4.0}.",
         f"- **Replicate seeds:** {rep_vals}.",
         f"- **Episodes per (policy, K, eps, beta):** {total_per_condition} ({len(rep_vals)} reps x {episodes_per_seed} eps/rep).",
@@ -124,8 +128,19 @@ def generate_report():
         "## Baselines",
         "",
         "- **info_gain_ask:** computes expected entropy reduction `IG(q)=H(b)-E[H|q]` for each question and asks `argmax_q IG(q)` when IG passes threshold (and optional entropy gate), otherwise acts toward MAP goal.",
+        "- **easy_info_gain_ask:** a one-question version of `info_gain_ask`, used as a lighter ask-once baseline.",
         "- **random_ask:** uses the same ask gating as `info_gain_ask` but picks a random available question when asking.",
         "- **pomcp_planner:** POMCP/PO-UCT baseline that approximates POMDP ask-act planning with Monte Carlo tree search over physical and question actions.",
+        "",
+        "## Conceptual Overview",
+        "",
+        "### Task Setup",
+        "",
+        "![Task setup overview](setup_overview.png)",
+        "",
+        "### Ask-or-Act Decision Flow",
+        "",
+        "![Ask-or-Act pipeline](ask_or_act_pipeline.png)",
         "",
         "---",
         "",
@@ -387,66 +402,30 @@ def generate_report():
         "## Policy Difference CIs (K=3,4)",
         "",
         "Deltas are bootstrap-estimated on paired episode keys: (K, eps, beta, rep_seed, episode_id).",
+        "Contrasts are reported only when the compared baseline was actually evaluated in the main sweep at K=3,4.",
         "",
         "| Contrast | Delta mean [95% CI] | N paired episodes |",
         "|----------|-----------------------|-------------------|",
     ])
 
-    ds_mean, ds_lo, ds_hi, ds_n = _paired_delta_ci("success", "ask_or_act", "never_ask", {3, 4}, 2001)
-    lines.append(
-        "| DeltaSuccess (AskOrAct - NeverAsk) | {:.2%} [{:.2%}, {:.2%}] | {} |".format(ds_mean, ds_lo, ds_hi, ds_n)
-    )
+    def _append_main_sweep_contrast(label, metric_name, policy_b, rng_seed):
+        mean, lo, hi, n = _paired_delta_ci(metric_name, "ask_or_act", policy_b, {3, 4}, rng_seed)
+        if n == 0:
+            lines.append(f"| {label} | Not evaluated in main sweep at K=3,4 | 0 |")
+            return
+        if metric_name == "success":
+            lines.append("| {} | {:.2%} [{:.2%}, {:.2%}] | {} |".format(label, mean, lo, hi, n))
+        else:
+            lines.append("| {} | {:.2f} [{:.2f}, {:.2f}] | {} |".format(label, mean, lo, hi, n))
 
-    dr_mean, dr_lo, dr_hi, dr_n = _paired_delta_ci("regret", "ask_or_act", "always_ask", {3, 4}, 2002)
-    lines.append(
-        "| DeltaRegret (AskOrAct - AlwaysAsk) | {:.2f} [{:.2f}, {:.2f}] | {} |".format(dr_mean, dr_lo, dr_hi, dr_n)
-    )
-
-    dsi_mean, dsi_lo, dsi_hi, dsi_n = _paired_delta_ci("success", "ask_or_act", "info_gain_ask", {3, 4}, 2003)
-    lines.append(
-        "| DeltaSuccess (AskOrAct - InfoGainAsk) | {:.2%} [{:.2%}, {:.2%}] | {} |".format(dsi_mean, dsi_lo, dsi_hi, dsi_n)
-    )
-
-    dri_mean, dri_lo, dri_hi, dri_n = _paired_delta_ci("regret", "ask_or_act", "info_gain_ask", {3, 4}, 2004)
-    lines.append(
-        "| DeltaRegret (AskOrAct - InfoGainAsk) | {:.2f} [{:.2f}, {:.2f}] | {} |".format(dri_mean, dri_lo, dri_hi, dri_n)
-    )
-
-    dse_mean, dse_lo, dse_hi, dse_n = _paired_delta_ci("success", "ask_or_act", "easy_info_gain_ask", {3, 4}, 2005)
-    if dse_n == 0 and scalek_rows:
-        dse_mean, dse_lo, dse_hi, dse_n = _paired_delta_ci(
-            "success", "ask_or_act", "easy_info_gain_ask", {3, 4}, 2105, rowset=scalek_rows
-        )
-    lines.append(
-        "| DeltaSuccess (AskOrAct - EasyInfoGainAsk) | {:.2%} [{:.2%}, {:.2%}] | {} |".format(dse_mean, dse_lo, dse_hi, dse_n)
-    )
-
-    dre_mean, dre_lo, dre_hi, dre_n = _paired_delta_ci("regret", "ask_or_act", "easy_info_gain_ask", {3, 4}, 2006)
-    if dre_n == 0 and scalek_rows:
-        dre_mean, dre_lo, dre_hi, dre_n = _paired_delta_ci(
-            "regret", "ask_or_act", "easy_info_gain_ask", {3, 4}, 2106, rowset=scalek_rows
-        )
-    lines.append(
-        "| DeltaRegret (AskOrAct - EasyInfoGainAsk) | {:.2f} [{:.2f}, {:.2f}] | {} |".format(dre_mean, dre_lo, dre_hi, dre_n)
-    )
-
-    dsp_mean, dsp_lo, dsp_hi, dsp_n = _paired_delta_ci("success", "ask_or_act", "pomcp_planner", {3, 4}, 2007)
-    if dsp_n == 0 and scalek_rows:
-        dsp_mean, dsp_lo, dsp_hi, dsp_n = _paired_delta_ci(
-            "success", "ask_or_act", "pomcp_planner", {3, 4}, 2107, rowset=scalek_rows
-        )
-    lines.append(
-        "| DeltaSuccess (AskOrAct - POMCP) | {:.2%} [{:.2%}, {:.2%}] | {} |".format(dsp_mean, dsp_lo, dsp_hi, dsp_n)
-    )
-
-    drp_mean, drp_lo, drp_hi, drp_n = _paired_delta_ci("regret", "ask_or_act", "pomcp_planner", {3, 4}, 2008)
-    if drp_n == 0 and scalek_rows:
-        drp_mean, drp_lo, drp_hi, drp_n = _paired_delta_ci(
-            "regret", "ask_or_act", "pomcp_planner", {3, 4}, 2108, rowset=scalek_rows
-        )
-    lines.append(
-        "| DeltaRegret (AskOrAct - POMCP) | {:.2f} [{:.2f}, {:.2f}] | {} |".format(drp_mean, drp_lo, drp_hi, drp_n)
-    )
+    _append_main_sweep_contrast("DeltaSuccess (AskOrAct - NeverAsk)", "success", "never_ask", 2001)
+    _append_main_sweep_contrast("DeltaRegret (AskOrAct - AlwaysAsk)", "regret", "always_ask", 2002)
+    _append_main_sweep_contrast("DeltaSuccess (AskOrAct - InfoGainAsk)", "success", "info_gain_ask", 2003)
+    _append_main_sweep_contrast("DeltaRegret (AskOrAct - InfoGainAsk)", "regret", "info_gain_ask", 2004)
+    _append_main_sweep_contrast("DeltaSuccess (AskOrAct - EasyInfoGainAsk)", "success", "easy_info_gain_ask", 2005)
+    _append_main_sweep_contrast("DeltaRegret (AskOrAct - EasyInfoGainAsk)", "regret", "easy_info_gain_ask", 2006)
+    _append_main_sweep_contrast("DeltaSuccess (AskOrAct - POMCP)", "success", "pomcp_planner", 2007)
+    _append_main_sweep_contrast("DeltaRegret (AskOrAct - POMCP)", "regret", "pomcp_planner", 2008)
 
     lines.extend([
         "",
@@ -678,6 +657,8 @@ def main():
     print("Generating report from", CSV_PATH)
     generate_report()
     print("Generating plots...")
+    plot_setup_overview("results/setup_overview.png")
+    plot_ask_or_act_pipeline("results/ask_or_act_pipeline.png")
     plot_main_dashboard(CSV_PATH, "results/main_dashboard.png")
     plot_clarification_quality_entropy_delta(CSV_PATH, "results/clarification_quality_entropy_delta.png")
     plot_pareto_k4(CSV_PATH, "results/pareto_K4.png")

@@ -505,6 +505,15 @@ def _posterior_key(posterior, candidate_goals):
     return tuple(round(float(p.get(g, 0.0)), 3) for g in candidate_goals)
 
 
+def _terminal_failure_remaining_cost(sim_steps, episode_max_steps):
+    """
+    Additional step penalty needed so cumulative rollout cost matches the real
+    evaluation objective for failures:
+      team_cost = episode_max_steps + question_cost * questions_asked
+    """
+    return float(max(0, int(episode_max_steps) - int(sim_steps)))
+
+
 def _sim_transition(env, rng, action, hidden_goal, posterior, candidate_goals, principal_pos, assistant_pos, collected,
                     q_count, q_mask, sim_steps, question_cost, ask_counts_as_step, wrong_pick_fail,
                     principal_beta, principal_eps, assistant_beta, assistant_eps, answer_noise, episode_max_steps,
@@ -677,7 +686,7 @@ def policy_pomcp_planner(env, state, instruction_u, posterior, candidate_goals, 
         if depth <= 0:
             return -_heuristic_remaining_cost(a_pos, hidden_goal, coll, obj_idx, obj_pos, env.N, env.walls, s_steps, episode_max_steps)
         if s_steps >= episode_max_steps:
-            return -float(episode_max_steps)
+            return 0.0
         if hidden_goal in obj_idx and coll[obj_idx[hidden_goal]]:
             return 0.0
         if _object_at_pos(a_pos, coll, pos_to_obj_ids, obj_idx) is not None:
@@ -695,7 +704,7 @@ def policy_pomcp_planner(env, state, instruction_u, posterior, candidate_goals, 
         if success:
             return -c
         if done:
-            return -(c + float(episode_max_steps))
+            return -(c + _terminal_failure_remaining_cost(s2, episode_max_steps))
         return -c + rollout(hidden_goal, post2, cand2, p2, a2, coll2, q2, qm2, s2, depth - 1)
 
     def simulate(hidden_goal, post, cand_goals, p_pos, a_pos, coll, q_count, q_mask, s_steps, depth):
@@ -704,7 +713,7 @@ def policy_pomcp_planner(env, state, instruction_u, posterior, candidate_goals, 
         if depth <= 0:
             return -_heuristic_remaining_cost(a_pos, hidden_goal, coll, obj_idx, obj_pos, env.N, env.walls, s_steps, episode_max_steps)
         if s_steps >= episode_max_steps:
-            return -float(episode_max_steps)
+            return 0.0
         if hidden_goal in obj_idx and coll[obj_idx[hidden_goal]]:
             return 0.0
         key = state_key(p_pos, a_pos, coll, cand_goals, post, q_count, q_mask, s_steps, depth)
@@ -727,7 +736,7 @@ def policy_pomcp_planner(env, state, instruction_u, posterior, candidate_goals, 
             if success:
                 ret = -c
             elif done:
-                ret = -(c + float(episode_max_steps))
+                ret = -(c + _terminal_failure_remaining_cost(s2, episode_max_steps))
             else:
                 ret = -c + rollout(hidden_goal, post2, cand2, p2, a2, coll2, q2, qm2, s2, depth - 1)
             node["N"] += 1
@@ -757,7 +766,7 @@ def policy_pomcp_planner(env, state, instruction_u, posterior, candidate_goals, 
         if success:
             ret = -c
         elif done:
-            ret = -(c + float(episode_max_steps))
+            ret = -(c + _terminal_failure_remaining_cost(s2, episode_max_steps))
         else:
             ret = -c + simulate(hidden_goal, post2, cand2, p2, a2, coll2, q2, qm2, s2, depth - 1)
         node["N"] += 1

@@ -63,6 +63,9 @@ DEBUG_MIN_K = 3
 AMBIGUITY_LEVELS = [1, 2, 3, 4]
 EPS_LEVELS = [0.0, 0.05, 0.1]
 BETA_LEVELS = [1.0, 2.0, 4.0]
+
+# Global policy registry. Individual experiments should use the explicit
+# subsets below instead of assuming every baseline runs everywhere.
 POLICIES = [
     "ask_or_act",
     "never_ask",
@@ -72,6 +75,25 @@ POLICIES = [
     "random_ask",
     "pomcp_planner",
 ]
+
+# The main sweep matches the paper artifacts: 5 core policies at every K,
+# plus two stronger baselines only at K=2 where they were originally profiled.
+MAIN_SWEEP_BASE_POLICIES = [
+    "ask_or_act",
+    "never_ask",
+    "always_ask",
+    "info_gain_ask",
+    "random_ask",
+]
+MAIN_SWEEP_EXTRA_POLICIES_BY_K = {
+    2: ["easy_info_gain_ask", "pomcp_planner"],
+}
+
+# Experiment-specific policy sets.
+ROBUST_ANSWER_POLICIES = list(POLICIES)
+ROBUST_MISMATCH_POLICIES = list(MAIN_SWEEP_BASE_POLICIES)
+ABLATION_POLICIES = list(POLICIES)
+SCALEK_POLICIES = list(POLICIES)
 N_EPISODES_PER_CONDITION = 20
 BASE_SEED = 42
 REPL_SEEDS = [0, 1, 2, 3, 4]

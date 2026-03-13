@@ -113,6 +113,15 @@ def _sweep_env_seed(base_seed, rep_seed, K, eps, beta, episode_id):
     )
 
 
+def _policies_for_main_sweep(ambiguity_K):
+    policies = list(getattr(config, "MAIN_SWEEP_BASE_POLICIES", config.POLICIES))
+    extra_by_k = getattr(config, "MAIN_SWEEP_EXTRA_POLICIES_BY_K", {})
+    for policy_name in extra_by_k.get(int(ambiguity_K), []):
+        if policy_name not in policies:
+            policies.append(policy_name)
+    return policies
+
+
 def _run_episode_impl(policy_name, seed, config_dict):
     """Single episode; used by run_episode, sweeps, and ablations."""
     K = config_dict.get("ambiguity_K", 2)
@@ -392,7 +401,7 @@ def run_episode(policy_name, seed, config_dict):
 
 
 def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.json"):
-    """Sweep over conditions; optionally use parallel workers. Writes CSV and JSON."""
+    """Sweep over the paper's main evaluation grid and write CSV/JSON summaries."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     rows = []
     n_workers = getattr(config, "N_WORKERS", 0)
@@ -406,10 +415,11 @@ def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.jso
 
         tasks = []
         for K in config.AMBIGUITY_LEVELS:
+            policy_names = _policies_for_main_sweep(K)
             for eps in config.EPS_LEVELS:
                 for beta in config.BETA_LEVELS:
                     cfg = {"ambiguity_K": K, "eps": eps, "beta": beta}
-                    for policy_name in config.POLICIES:
+                    for policy_name in policy_names:
                         for rep_seed in reps:
                             for episode_id in range(n_episodes_per_seed):
                                 seed = _sweep_env_seed(config.BASE_SEED, rep_seed, K, eps, beta, episode_id)
@@ -476,10 +486,11 @@ def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.jso
                 })
     else:
         for K in config.AMBIGUITY_LEVELS:
+            policy_names = _policies_for_main_sweep(K)
             for eps in config.EPS_LEVELS:
                 for beta in config.BETA_LEVELS:
                     cfg = {"ambiguity_K": K, "eps": eps, "beta": beta}
-                    for policy_name in config.POLICIES:
+                    for policy_name in policy_names:
                         for rep_seed in reps:
                             for episode_id in range(n_episodes_per_seed):
                                 seed = _sweep_env_seed(config.BASE_SEED, rep_seed, K, eps, beta, episode_id)
@@ -546,11 +557,12 @@ def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.jso
 
     summary = {}
     for K in config.AMBIGUITY_LEVELS:
+        policy_names = _policies_for_main_sweep(K)
         for eps in config.EPS_LEVELS:
             for beta in config.BETA_LEVELS:
                 key = (K, eps, beta)
                 summary[key] = {}
-                for policy_name in config.POLICIES:
+                for policy_name in policy_names:
                     sub = [
                         r for r in rows
                         if r["ambiguity_K"] == K and r["eps"] == eps and r["beta"] == beta and r["policy"] == policy_name
@@ -590,7 +602,7 @@ def run_ablations(output_csv="results/metrics_ablations.csv"):
                 for K in ks:
                     for eps in eps_levels:
                         for answer_noise in answer_noises:
-                            for policy in config.POLICIES:
+                            for policy in config.ABLATION_POLICIES:
                                 for ep in range(n_eps):
                                     seed = (
                                         900000
@@ -599,7 +611,7 @@ def run_ablations(output_csv="results/metrics_ablations.csv"):
                                         + (0 if mode["mode_name"] == "modeA" else 1 if mode["mode_name"] == "modeB" else 2) * 1000
                                         + (100 if wrong_pick_fail else 0)
                                         + deadline_margin * 10
-                                        + config.POLICIES.index(policy) * 100
+                                        + config.ABLATION_POLICIES.index(policy) * 100
                                         + ep
                                     )
                                     cfg = {
@@ -701,7 +713,7 @@ def run_robust_answer_noise(output_csv="results/metrics_robust_answer_noise.csv"
         rows = []
         for K in ks:
             for answer_noise in answer_noises:
-                for policy in config.POLICIES:
+                for policy in config.ROBUST_ANSWER_POLICIES:
                     for rep_seed in reps:
                         for episode_id in range(n_episodes_per_seed):
                             seed = _sweep_env_seed(
@@ -795,7 +807,7 @@ def run_robust_mismatch(output_csv="results/metrics_robust_mismatch.csv"):
     rows = []
     for K in ks:
         for principal_beta in principal_betas:
-            for policy in config.POLICIES:
+            for policy in config.ROBUST_MISMATCH_POLICIES:
                 for rep_seed in reps:
                     for episode_id in range(n_episodes_per_seed):
                         seed = _sweep_env_seed(
@@ -1086,7 +1098,7 @@ def run_scale_k(output_csv="results/metrics_scaleK.csv"):
     ks = [1, 2, 3, 4, 5, 6]
     eps = 0.05
     beta = 2.0
-    policies = list(config.POLICIES)
+    policies = list(config.SCALEK_POLICIES)
     reps = list(getattr(config, "REPL_SEEDS", [0]))
     n_episodes_per_seed = int(
         getattr(

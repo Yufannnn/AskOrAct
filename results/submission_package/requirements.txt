@@ -1,0 +1,3 @@
+numpy>=1.20
+matplotlib>=3.3
+# Optional GPU: pip install cupy-cuda12x (or cupy-cuda11x); set ASKORACT_USE_GPU=1 to enable

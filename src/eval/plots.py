@@ -946,6 +946,218 @@ def plot_scale_k(
     print("Saved", output_path)
 
 
+def plot_setup_overview(output_path="results/setup_overview.png"):
+    """Draw a schematic of the cooperative task setup."""
+    if plt is None:
+        return
+    from matplotlib.patches import Circle, FancyArrowPatch, FancyBboxPatch, Rectangle
+
+    fig, ax = plt.subplots(1, 1, figsize=(11.5, 5.8), constrained_layout=True)
+    ax.set_xlim(-0.5, 18.5)
+    ax.set_ylim(-0.5, 10.5)
+    ax.axis("off")
+
+    # Gridworld panel.
+    grid_x0, grid_y0, cell = 0.5, 0.8, 0.9
+    N = 9
+    wall_color = "#3b3f4a"
+    room_fill = "#f6f1e8"
+    right_fill = "#eef3f8"
+    doorway_row = 4
+    split_col = 4
+
+    for r in range(N):
+        for c in range(N):
+            x = grid_x0 + c * cell
+            y = grid_y0 + (N - 1 - r) * cell
+            fill = room_fill if c < split_col else right_fill
+            ax.add_patch(Rectangle((x, y), cell, cell, facecolor=fill, edgecolor="#c8c8c8", linewidth=0.8))
+
+    # Outer boundary.
+    ax.add_patch(Rectangle((grid_x0, grid_y0), N * cell, N * cell, fill=False, edgecolor=wall_color, linewidth=2.0))
+
+    # Internal wall with a doorway.
+    wall_x = grid_x0 + split_col * cell
+    for r in range(N):
+        if r == doorway_row:
+            continue
+        y = grid_y0 + (N - 1 - r) * cell
+        ax.add_patch(Rectangle((wall_x - 0.06, y), 0.12, cell, facecolor=wall_color, edgecolor=wall_color))
+    door_y = grid_y0 + (N - 1 - doorway_row) * cell + 0.5 * cell
+    ax.text(wall_x + 0.15, door_y, "door", fontsize=10, color=wall_color, va="center")
+
+    def _cell_center(row, col):
+        return grid_x0 + col * cell + 0.5 * cell, grid_y0 + (N - 1 - row) * cell + 0.5 * cell
+
+    objects = [
+        {"pos": (1, 1), "label": "blue gem", "face": "#4c78a8", "edge": "#1f3b5d"},
+        {"pos": (1, 6), "label": "red key", "face": "#e45756", "edge": "#8a1c1c"},
+        {"pos": (3, 2), "label": "red coin", "face": "#e45756", "edge": "#8a1c1c"},
+        {"pos": (6, 7), "label": "red gem", "face": "#e45756", "edge": "#f2b701"},
+        {"pos": (7, 2), "label": "green key", "face": "#54a24b", "edge": "#2c6626"},
+    ]
+    for obj in objects:
+        cx, cy = _cell_center(*obj["pos"])
+        ax.add_patch(Circle((cx, cy), 0.24, facecolor=obj["face"], edgecolor=obj["edge"], linewidth=2.2))
+
+    # Agents.
+    for row, col, label, color in [
+        (2, 1, "P", "#222222"),
+        (6, 1, "A", "#f58518"),
+    ]:
+        cx, cy = _cell_center(row, col)
+        ax.add_patch(Circle((cx, cy), 0.28, facecolor=color, edgecolor="white", linewidth=1.5))
+        ax.text(cx, cy, label, ha="center", va="center", fontsize=12, color="white", fontweight="bold")
+
+    # Call out the true hidden goal.
+    goal_x, goal_y = _cell_center(6, 7)
+    ax.add_patch(Circle((goal_x, goal_y), 0.33, facecolor="none", edgecolor="#f2b701", linewidth=2.5, linestyle="--"))
+    ax.annotate(
+        "true goal (hidden from assistant)",
+        xy=(goal_x + 0.05, goal_y + 0.1),
+        xytext=(10.8, 8.2),
+        arrowprops=dict(arrowstyle="->", color="#8a1c1c", linewidth=1.5),
+        fontsize=10,
+        color="#8a1c1c",
+    )
+
+    # Instruction and observations panel.
+    ax.add_patch(
+        FancyBboxPatch(
+            (10.1, 6.9),
+            6.8,
+            2.2,
+            boxstyle="round,pad=0.25,rounding_size=0.2",
+            facecolor="#fff7e6",
+            edgecolor="#c98f00",
+            linewidth=1.4,
+        )
+    )
+    ax.text(10.45, 8.55, "Instruction", fontsize=12, fontweight="bold", color="#7a4b00")
+    ax.text(10.45, 7.85, "\"get red object\"", fontsize=14, color="#7a4b00")
+    ax.text(10.45, 7.2, "K = 3 candidate goals share this surface form", fontsize=10, color="#7a4b00")
+
+    ax.add_patch(
+        FancyBboxPatch(
+            (10.1, 4.0),
+            6.8,
+            1.9,
+            boxstyle="round,pad=0.25,rounding_size=0.2",
+            facecolor="#edf6ff",
+            edgecolor="#4c78a8",
+            linewidth=1.4,
+        )
+    )
+    ax.text(10.45, 5.35, "Assistant observes", fontsize=12, fontweight="bold", color="#1f4e79")
+    ax.text(10.45, 4.7, "- world state and instruction", fontsize=10, color="#1f4e79")
+    ax.text(10.45, 4.2, "- principal actions over time", fontsize=10, color="#1f4e79")
+
+    ax.add_patch(
+        FancyBboxPatch(
+            (10.1, 1.0),
+            6.8,
+            2.2,
+            boxstyle="round,pad=0.25,rounding_size=0.2",
+            facecolor="#eef8ee",
+            edgecolor="#54a24b",
+            linewidth=1.4,
+        )
+    )
+    ax.text(10.45, 2.65, "Clarification menu", fontsize=12, fontweight="bold", color="#2f6b2f")
+    ax.text(10.45, 2.0, "ask_color    ask_type    ask_room", fontsize=10, color="#2f6b2f")
+    ax.text(10.45, 1.4, "answers update the posterior over candidate goals", fontsize=10, color="#2f6b2f")
+
+    ax.add_patch(FancyArrowPatch((8.9, 7.4), (10.0, 7.9), arrowstyle="->", mutation_scale=16, linewidth=1.5, color="#7a4b00"))
+    ax.add_patch(FancyArrowPatch((8.8, 4.8), (10.0, 4.9), arrowstyle="->", mutation_scale=16, linewidth=1.5, color="#1f4e79"))
+    ax.add_patch(FancyArrowPatch((8.7, 2.0), (10.0, 2.0), arrowstyle="->", mutation_scale=16, linewidth=1.5, color="#2f6b2f"))
+
+    ax.text(
+        0.6,
+        9.95,
+        "Task setup: ambiguous instruction, hidden goal, and shared world state",
+        fontsize=14,
+        fontweight="bold",
+        color="#202020",
+    )
+    ax.text(0.65, 9.35, "Example shown for K = 3: three red objects match the same instruction, but only one is the principal's goal.", fontsize=10.5, color="#404040")
+
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path, dpi=220)
+    plt.close(fig)
+    print("Saved", output_path)
+
+
+def plot_ask_or_act_pipeline(output_path="results/ask_or_act_pipeline.png"):
+    """Draw a conceptual decision-flow diagram for AskOrAct."""
+    if plt is None:
+        return
+    from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+
+    fig, ax = plt.subplots(1, 1, figsize=(12.5, 6.4), constrained_layout=True)
+    ax.set_xlim(0, 15)
+    ax.set_ylim(0, 9)
+    ax.axis("off")
+
+    def _box(x, y, w, h, title, body, face, edge):
+        ax.add_patch(
+            FancyBboxPatch(
+                (x, y),
+                w,
+                h,
+                boxstyle="round,pad=0.2,rounding_size=0.18",
+                facecolor=face,
+                edgecolor=edge,
+                linewidth=1.6,
+            )
+        )
+        ax.text(x + 0.2, y + h - 0.45, title, fontsize=11.5, fontweight="bold", color=edge)
+        ax.text(x + 0.2, y + h - 0.95, body, fontsize=9.8, color="#303030", va="top")
+
+    def _arrow(x0, y0, x1, y1, text=None, color="#5b5b5b", rad=0.0):
+        ax.add_patch(
+            FancyArrowPatch(
+                (x0, y0),
+                (x1, y1),
+                arrowstyle="->",
+                mutation_scale=15,
+                linewidth=1.5,
+                color=color,
+                connectionstyle=f"arc3,rad={rad}",
+            )
+        )
+        if text:
+            ax.text((x0 + x1) / 2.0, (y0 + y1) / 2.0 + 0.25, text, fontsize=9.5, color=color, ha="center")
+
+    _box(0.6, 6.0, 2.3, 1.7, "1. Instruction u", "templated language\nidentifies K candidates", "#fff7e6", "#9a6700")
+    _box(3.4, 6.0, 2.5, 1.7, "2. Candidate goals G", "objects consistent\nwith the instruction", "#f4f1fb", "#6c4aa4")
+    _box(6.4, 6.0, 2.4, 1.7, "3. Posterior b_t(g)", "belief over goals\nstarts from instruction prior", "#edf6ff", "#356c9b")
+    _box(3.4, 3.5, 2.5, 1.55, "4. Principal action a_t", "observe next move\nfrom the hidden-goal principal", "#fff3f0", "#b04a3f")
+    _box(6.4, 3.35, 3.0, 1.9, "5. Bayesian update", "b_{t+1}(g) ∝ b_t(g) pi(a_t | s_t, g)\nplus answer-likelihood updates after a question", "#eef8ee", "#3d7d3d")
+    _box(10.0, 5.55, 3.6, 2.15, "6. Evaluate decision", "CostAct = expected task cost now\nCostAsk = 1 + c_q + E[CostAct after answer]", "#fff7e6", "#9a6700")
+    _box(10.1, 3.0, 3.4, 1.65, "Gates", "entropy gate\nask window\nquestion budget", "#f8f8f8", "#666666")
+    _box(9.3, 0.8, 2.25, 1.4, "ASK", "choose best question\nif CostAsk < CostAct", "#eef8ee", "#3d7d3d")
+    _box(11.95, 0.8, 2.25, 1.4, "ACT", "move toward MAP goal\nand pick when aligned", "#edf6ff", "#356c9b")
+
+    _arrow(2.9, 6.85, 3.4, 6.85, color="#9a6700")
+    _arrow(5.9, 6.85, 6.4, 6.85, color="#6c4aa4")
+    _arrow(7.6, 6.0, 7.9, 5.25, color="#356c9b")
+    _arrow(5.9, 4.3, 6.4, 4.3, text="inverse planning", color="#b04a3f")
+    _arrow(9.4, 4.3, 10.0, 5.95, color="#3d7d3d")
+    _arrow(11.7, 3.0, 11.7, 2.2, color="#666666")
+    _arrow(11.1, 2.95, 10.4, 2.2, text="if ask", color="#3d7d3d", rad=0.05)
+    _arrow(12.5, 2.95, 13.1, 2.2, text="if act", color="#356c9b", rad=-0.05)
+    _arrow(10.4, 0.8, 7.4, 3.25, text="answer updates posterior", color="#3d7d3d", rad=0.15)
+    _arrow(13.1, 0.8, 6.9, 6.0, text="new state and action evidence", color="#356c9b", rad=-0.22)
+
+    ax.text(0.6, 8.45, "AskOrAct decision flow", fontsize=14, fontweight="bold", color="#202020")
+    ax.text(0.6, 7.95, "The assistant alternates between belief updates and a one-step expected-cost comparison between asking and acting.", fontsize=10.5, color="#404040")
+
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    fig.savefig(output_path, dpi=220)
+    plt.close(fig)
+    print("Saved", output_path)
+
+
 def plot_pareto_k4(
     csv_path="results/metrics.csv",
     output_path="results/pareto_K4.png",

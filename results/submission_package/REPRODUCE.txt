@@ -1,0 +1,14 @@
+AskOrAct reproducibility commands (Linux/macOS):
+
+./run.sh setup
+./run.sh sweep
+./run.sh ablations
+./run.sh report
+./run.sh package
+
+Outputs:
+results/metrics.csv
+results/metrics_ablations.csv
+results/full_report.md
+results/main_dashboard.png
+results/ablations_dashboard.png

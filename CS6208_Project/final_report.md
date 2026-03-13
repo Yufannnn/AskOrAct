@@ -27,11 +27,11 @@
 
 ### Task Setup
 
-![Task setup overview](setup_overview.png)
+![Task setup overview](../results/setup_overview.png)
 
 ### Ask-or-Act Decision Flow
 
-![Ask-or-Act pipeline](ask_or_act_pipeline.png)
+![Ask-or-Act pipeline](../results/ask_or_act_pipeline.png)
 
 ---
 
@@ -242,35 +242,35 @@
 
 ### Main Dashboard
 
-![Main dashboard](main_dashboard.png)
+![Main dashboard](../results/main_dashboard.png)
 
 ### Clarification Quality
 
-![Clarification quality entropy delta](clarification_quality_entropy_delta.png)
+![Clarification quality entropy delta](../results/clarification_quality_entropy_delta.png)
 
 ### Pareto (K=4)
 
-![Pareto K=4](pareto_K4.png)
+![Pareto K=4](../results/pareto_K4.png)
 
 ### Ablations Dashboard
 
-![Ablations dashboard](ablations_dashboard.png)
+![Ablations dashboard](../results/ablations_dashboard.png)
 
 ### Robustness: Answer Noise Deltas
 
-![Robust answer noise deltas](robust_answer_noise_deltas.png)
+![Robust answer noise deltas](../results/robust_answer_noise_deltas.png)
 
 ### Robustness: Principal-Model Mismatch Deltas
 
-![Robust mismatch deltas](robust_mismatch_deltas.png)
+![Robust mismatch deltas](../results/robust_mismatch_deltas.png)
 
 ### Generalization: Held-out Templates
 
-![Held-out template generalization](generalization_templates_plot.png)
+![Held-out template generalization](../results/generalization_templates_plot.png)
 
 ### Generalization: Scale K to 6
 
-![Scale-K stress test](scaleK_plot.png)
+![Scale-K stress test](../results/scaleK_plot.png)
 
 
 ---

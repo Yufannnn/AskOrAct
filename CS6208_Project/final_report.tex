@@ -31,7 +31,7 @@
 We study cooperative assistance under instruction ambiguity: should a helper ask a clarifying question or act immediately?
 We implement a controlled gridworld in which an assistant infers a Bayesian posterior over a principal's hidden goal from an ambiguous instruction and observed actions, then decides whether to act or ask.
 Our \textit{AskOrAct} policy selects whichever option minimises expected team cost, using a value-of-information criterion.
-Across 25{,}200 evaluation episodes spanning ambiguity levels $K \in \{1,2,3,4\}$, rationality parameters, and principal noise, \textit{AskOrAct} achieves $+7.9$\,pp and $+8.4$\,pp higher success than a non-asking baseline at $K{=}3$ and $K{=}4$ (95\% CI both exclude zero), while asking only $0.6$--$0.7$ questions per episode.
+Across 19{,}800 evaluation episodes spanning ambiguity levels $K \in \{1,2,3,4\}$, rationality parameters, and principal noise, \textit{AskOrAct} achieves $+7.9$\,pp and $+8.4$\,pp higher success than a non-asking baseline at $K{=}3$ and $K{=}4$ (95\% CI both exclude zero), while asking only $0.6$--$0.7$ questions per episode.
 Robustness sweeps confirm the advantage persists under answer noise and principal model mismatch.
 Ablations reveal that a non-zero question cost and correct ask-window semantics are necessary for stable performance.
 \end{abstract}
@@ -85,6 +85,14 @@ The principal takes approximately rational actions towards its goal, sampled fro
 
 The assistant observes the state, instruction, and all principal actions, but not the true goal.
 An episode ends when the assistant picks an object (success if correct) or the step budget is exhausted.
+Figure~\ref{fig:setup_overview} shows the full cooperative setup, including the ambiguous instruction, the assistant's partial information, and the question menu used for clarification.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.97\textwidth]{setup_overview.png}
+  \caption{Task setup. The principal has a hidden goal object in a two-room gridworld, while the assistant sees the shared world state, an ambiguous instruction, and the principal's movement. Clarification questions provide structured observations that can collapse the posterior over candidate goals.}
+  \label{fig:setup_overview}
+\end{figure*}
 
 \subsection{Bayesian Posterior}
 
@@ -119,6 +127,14 @@ The policy asks $\arg\min_q \text{CostAsk}(q)$ if $\min_q \text{CostAsk}(q) < \t
   \item \textbf{Ask window}: do not ask after step 6 (too late to benefit).
   \item \textbf{Budget}: at most $Q_{\max} = 3$ questions per episode.
 \end{enumerate}
+Figure~\ref{fig:ask_or_act_pipeline} summarises this decision process from instruction grounding through posterior update and the final ask-versus-act comparison.
+
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=0.97\textwidth]{ask_or_act_pipeline.png}
+  \caption{AskOrAct decision flow. The assistant combines instruction-derived candidates with inverse-planning evidence from the principal's actions, updates its posterior, and compares immediate acting against asking the best available clarification question under a shared team-cost objective.}
+  \label{fig:ask_or_act_pipeline}
+\end{figure*}
 
 \subsection{Baselines}
 
@@ -128,13 +144,14 @@ The policy asks $\arg\min_q \text{CostAsk}(q)$ if $\min_q \text{CostAsk}(q) < \t
 \textbf{EasyInfoGainAsk}: InfoGainAsk limited to one question per episode.
 \textbf{RandomAsk}: same gating as InfoGainAsk but picks a random question.
 \textbf{POMCPPlanner}: POMDP baseline using PO-UCT / POMCP tree search over ask and act actions.
-All 7 policies are evaluated across all $(K,\varepsilon,\beta)$ cells.
+In the main sweep, \textbf{EasyInfoGainAsk} and \textbf{POMCPPlanner} are evaluated only at $K{=}2$ as targeted stronger baselines; the 5 core policies above are evaluated across all $(K,\varepsilon,\beta)$ cells.
 
 \section{Experimental Setup}
 
 \textbf{Sweep.}
-Main evaluation: 7 policies $\times$ $K \in \{1,2,3,4\}$ $\times$ $\varepsilon \in \{0, 0.05, 0.1\}$ $\times$ $\beta \in \{1, 2, 4\}$, 5 replicate seeds $\times$ 20 episodes per condition = 100 episodes per cell.
-Total: 25{,}200 episodes.
+Main evaluation: $K \in \{1,2,3,4\}$, $\varepsilon \in \{0, 0.05, 0.1\}$, $\beta \in \{1, 2, 4\}$, 5 replicate seeds $\times$ 20 episodes per condition = 100 episodes per cell.
+The 5 core policies are evaluated in every cell; \textit{EasyInfoGainAsk} and \textit{POMCPPlanner} are additionally evaluated at $K{=}2$.
+Total: 19{,}800 episodes.
 
 \textbf{Metrics.}
 \textit{Success rate}: fraction of episodes where the assistant picks the true goal.
