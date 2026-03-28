@@ -63,7 +63,8 @@ In cooperative assistance an agent receives goal evidence through two channels: 
 Using a controlled gridworld benchmark we show that these channels are \emph{strongly redundant} when passive inference is reliable, but redundancy weakens as passive quality degrades---making clarification valuable primarily as robustness insurance.
 A Shapley-style decomposition reveals an interaction term of $-38$\,pp at $K{=}3$ (strong redundancy) that shrinks to $-17$\,pp when 60\% of actions are unobserved.
 We further show that assistability is non-monotonic in principal rationality: a \emph{more} rational principal can be harder to assist because action aliasing hides intent.
-Under model mismatch, additional observation actively poisons the posterior ($-2.2$\,pp/step vs.\ $-0.8$ matched), explaining why myopic passive-aware heuristics fail to improve over a simple cost-comparing baseline.
+Under model mismatch, additional observation actively poisons the posterior ($-2.2$\,pp/step vs.\ $-0.8$ matched).
+A surprise-tempered posterior update mitigates this: it preserves matched performance while gaining $+1$--$+5$\,pp under mismatch, suggesting that posterior quality is at least as important as the ask-or-act policy under misspecification.
 }}
 \vspace{14pt}
 }]
@@ -253,6 +254,25 @@ Three heuristic constraints are imposed on top of the Bayes-risk core for engine
 All thresholds ($\tau_H$, $\tau_\mathrm{IG}$, ask window, $Q_\mathrm{max}$) are hand-set, not tuned on a validation split; the ablation (Section~\ref{sec:results}) shows that $c_q$ dominates and performance is insensitive to the guard parameters within reasonable ranges (Appendix~\ref{app:hyperparams}).
 Figure~\ref{fig:ask_or_act_pipeline} summarises this decision process from instruction grounding through posterior update and the final ask-versus-act comparison.
 
+\subsection{Surprise-Tempered Updates (AskOrAct-ST)}
+
+Under model mismatch, standard Bayesian updates can poison the posterior (Section~\ref{sec:results}).
+We address this with a surprise-triggered likelihood tempering that modifies the passive update without changing the ask-or-act policy:
+\[
+  b_{t+1}(g) \propto b_t(g) \cdot \pi(a_t \mid s_t, g, \hat\beta)^{\omega_t},
+\]
+where $\omega_t \in (0, 1]$ controls how much the passive observation is trusted.
+The tempering weight is driven by a CUSUM-style surprise accumulator:
+\[
+  S_t = \max\bigl(0,\; \gamma\, S_{t-1} + \bigl(-\!\log p_t(a_t) - \mu\bigr)\bigr),
+  \quad \omega_t = \frac{1}{1 + S_t / \tau},
+\]
+where $p_t(a_t) = \sum_g b_t(g)\,\pi(a_t \mid s_t, g, \hat\beta)$ is the predictive action probability, $\mu{=}1.5$ is the matched-model baseline surprise, $\gamma{=}0.9$ is the forgetting rate, and $\tau{=}3.0$ is the tempering scale.
+Under a matched model, $S_t \approx 0$ so $\omega_t \approx 1$ (standard Bayes).
+Under mismatch, $S_t$ grows and $\omega_t$ shrinks, downweighting unreliable passive evidence.
+
+This intervenes at the \emph{inference} layer, not the decision layer: the ask-or-act gate is unchanged.
+Three prior attempts to improve the decision layer all failed (Section~\ref{sec:results}), motivating an inference-layer intervention instead.
 
 \subsection{Baselines}
 
@@ -448,8 +468,37 @@ The slope difference ($-11$ vs.\ $-4$\,pp) confirms that passive inference is no
   \label{fig:obs_hurts}
 \end{figure}
 
+\textbf{Surprise-tempered updates mitigate mismatch.}
+AskOrAct-ST (Section~3.4) addresses posterior poisoning by downweighting passive evidence when action surprise is high.
+Table~\ref{tab:temper} shows paired seed-level deltas (mean $\pm$ 1\,s.e.\ over 5 seeds): no harm under matched models ($+0.0 \pm 1.6$\,pp at $K{=}3$) and positive gains under mismatch, largest at $\beta_\text{true}{=}0.5$, $K{=}4$ ($+5.0 \pm 2.7$\,pp).
+The gains are modest and some CIs include zero; we characterise AskOrAct-ST as a \emph{mitigation}, not a complete fix.
+A sensitivity sweep over $\gamma{\in}\{0.7, 0.9, 0.95\}$ and $\tau{\in}\{1.5, 3.0, 6.0\}$ at the hardest condition ($K{=}4$, $\beta{=}0.5$) shows all 9 settings improve ($+1$ to $+4$\,pp).
+
+\begin{table}[h]
+\centering
+\caption{AskOrAct vs.\ AskOrAct-ST (surprise-tempered). $\Delta$: gain from tempering.}
+\label{tab:temper}
+\scriptsize
+\begin{tabular}{llrrl}
+\toprule
+$K$ & Condition & AskOrAct & ST & $\Delta$ (pp) \\
+\midrule
+3 & Matched ($\beta{=}2$) & 95\% & 95\% & $+0.0 \pm 1.6$ \\
+3 & Mismatch ($\beta{=}1$) & 78\% & 81\% & $+3.0 \pm 2.5$ \\
+3 & Mismatch ($\beta{=}0.5$) & 73\% & 76\% & $+3.0 \pm 2.0$ \\
+\midrule
+4 & Matched ($\beta{=}2$) & 82\% & 82\% & $+0.0 \pm 0.0$ \\
+4 & Mismatch ($\beta{=}1$) & 71\% & 72\% & $+1.0 \pm 1.9$ \\
+4 & Mismatch ($\beta{=}0.5$) & 54\% & 59\% & $+5.0 \pm 2.7$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three prior attempts to improve the \emph{decision layer}---overlap heuristic, one-step lookahead, and surprise-triggered asking---all failed to beat AskOrAct ($-1$ to $-5$\,pp).
+This suggests that under mismatch, the posterior quality is at least as important as the ask-or-act gate---though the policy's surrogate objective (which ignores failure cost) may also contribute.
+
 \textbf{Generalization.}
-Layout, prior, noise, grid-size, and room-count variations all preserve a positive AskOrAct--NeverAsk gap ($+2$--$+8$\,pp at $K{=}4$), though some deltas are small relative to sampling noise (details in Appendix~\ref{app:robustness}).
+Layout, prior, noise, grid-size, and room-count variations all preserve a positive AskOrAct--NeverAsk gap ($+2$--$+8$\,pp at $K{=}4$); details in Appendix~\ref{app:robustness}.
 
 \textbf{Passive channel degradation.}
 Figure~\ref{fig:action_drop} varies the fraction $p_\text{drop}$ of principal actions the assistant fails to observe.
@@ -552,10 +601,10 @@ Future work could investigate failure-aware objectives (the myopic surrogate doe
 
 \section{Conclusion}
 
-We presented a controlled benchmark for ask-or-act decisions, producing three findings that require both channels to observe.
-First, passive and active evidence are strongly redundant ($I{=}-38$\,pp), but redundancy weakens as passive quality degrades---making clarification valuable primarily as robustness insurance, not additive information.
-Second, assistability is non-monotonic in principal rationality: extreme rationality collapses action diversity and hides intent.
-Third, under model mismatch, observation actively poisons the posterior ($-2.2$\,pp/step, $2.8\times$ matched), and passive-aware heuristics cannot outperform the myopic cost baseline.
+We presented a controlled benchmark for ask-or-act decisions with both a diagnostic and a constructive contribution.
+\textit{Diagnostic:} passive and active evidence are strongly redundant ($I{=}-38$\,pp); assistability is non-monotonic in principal rationality; and under mismatch, observation actively poisons the posterior ($-2.2$\,pp/step).
+\textit{Constructive:} surprise-tempered posterior updates (AskOrAct-ST) mitigate mismatch with no harm when matched and $+1$--$+5$\,pp gains under mismatch, after three decision-layer interventions all failed.
+This suggests posterior quality is at least as important as the ask-or-act policy under misspecification.
 \textit{Scope note:} these findings characterise behaviour in a controlled gridworld under a Boltzmann principal; generalization to richer environments and real human principals is an open question.
 Code and data are available at \url{https://github.com/Yufannnn/AskOrAct}.
 

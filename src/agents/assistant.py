@@ -1014,3 +1014,92 @@ def policy_cost_wait_ask(env, state, instruction_u, posterior, candidate_goals, 
         return assistant_task_action(env, state, g_star), posterior
     g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
     return assistant_task_action(env, state, g_star), posterior
+
+
+# ---------------------------------------------------------------------------
+# MismatchAwareAsk: online model criticism of the passive channel
+# ---------------------------------------------------------------------------
+
+def policy_mismatch_aware_ask(env, state, instruction_u, posterior, candidate_goals,
+                              principal_action_history, questions_asked, rng, beta, eps,
+                              answer_noise, question_cost=None, max_questions=None,
+                              entropy_gate=None, ask_window=None, asked_qnames=None,
+                              wrong_pick_penalty=None, principal_beta=None, principal_eps=None,
+                              assistant_beta=None, assistant_eps=None,
+                              current_steps=None, _surprise_state=None, **kwargs):
+    """
+    MismatchAwareAsk: monitors action surprise to detect passive-channel mismatch.
+    When cumulative surprise is high, asks more aggressively.
+
+    Uses a CUSUM-style accumulator:
+      S_t = max(0, gamma * S_{t-1} + (surprise_t - baseline))
+    When S_t > threshold, lowers the cost-ask threshold to encourage asking.
+    """
+    import math
+    from src.agents.principal import principal_action_probs
+
+    question_cost = question_cost if question_cost is not None else config.QUESTION_COST
+    max_questions = max_questions if max_questions is not None else config.MAX_QUESTIONS
+    entropy_gate = entropy_gate if entropy_gate is not None else config.ENTROPY_GATE
+    ask_window = ask_window if ask_window is not None else config.ASK_WINDOW
+    wpp = wrong_pick_penalty if wrong_pick_penalty is not None else getattr(config, "WRONG_PICK_PENALTY", 0)
+    a_beta = assistant_beta if assistant_beta is not None else beta
+    a_eps = assistant_eps if assistant_eps is not None else eps
+
+    if not candidate_goals or not posterior:
+        return "stay", posterior
+    if questions_asked >= max_questions:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+    step_t = len(principal_action_history)
+    if step_t > ask_window:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+    ent = posterior_entropy(posterior)
+    if ent <= entropy_gate:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+
+    # --- Surprise accumulator ---
+    # Compute surprise from the most recent principal action
+    gamma = 0.90
+    baseline_surprise = 1.5  # expected surprise under matched model (≈ entropy of action dist)
+    surprise_threshold = 3.0  # trigger more aggressive asking
+
+    # Initialize or retrieve surprise state
+    if _surprise_state is None:
+        _surprise_state = {"S": 0.0}
+
+    if principal_action_history:
+        last_action = principal_action_history[-1]
+        # Predictive probability: P(a) = sum_g b(g) * P(a|s,g)
+        p_action = 0.0
+        for g in candidate_goals:
+            p_g = posterior.get(g, 0.0)
+            if p_g <= 0:
+                continue
+            probs = principal_action_probs(state, g, env, a_beta, a_eps)
+            p_action += p_g * probs.get(last_action, 1e-10)
+        p_action = max(p_action, 1e-10)
+        surprise = -math.log(p_action)
+        _surprise_state["S"] = max(0.0, gamma * _surprise_state["S"] + (surprise - baseline_surprise))
+
+    S_t = _surprise_state["S"]
+
+    # --- Ask decision with surprise-adjusted threshold ---
+    cost_act = CostAct(state, posterior, candidate_goals, env, answer_noise, wrong_pick_penalty=wpp)
+    best_q, cost_ask = best_question_cost(
+        state=state, posterior=posterior, candidate_goals=candidate_goals,
+        env=env, answer_noise=answer_noise, question_cost=question_cost,
+        asked_qnames=asked_qnames, wrong_pick_penalty=wpp,
+    )
+
+    # When surprise is high, make asking easier by discounting cost_ask
+    if S_t > surprise_threshold and best_q is not None:
+        # Force ask when model seems unreliable
+        return ("ask", best_q), posterior
+    elif best_q is not None and cost_ask < cost_act:
+        return ("ask", best_q), posterior
+
+    g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+    return assistant_task_action(env, state, g_star), posterior

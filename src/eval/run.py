@@ -22,7 +22,7 @@ from src.agents import (
 )
 from src.agents.assistant import (
     CostAct, best_question_cost, assistant_task_action, question_info_gain,
-    policy_passive_aware_ask, policy_cost_wait_ask,
+    policy_passive_aware_ask, policy_cost_wait_ask, policy_mismatch_aware_ask,
 )
 
 
@@ -157,6 +157,10 @@ def _run_episode_impl(policy_name, seed, config_dict):
     wrong_pick_penalty = config_dict.get("wrong_pick_penalty", getattr(config, "WRONG_PICK_PENALTY", 0))
     mismatch_true_noise_by_qtype = config_dict.get("mismatch_true_noise_by_qtype", None)
     action_drop_rate = config_dict.get("action_drop_rate", 0.0)
+    temper_passive = config_dict.get("temper_passive", False)
+    temper_gamma = config_dict.get("temper_gamma", 0.90)
+    temper_baseline = config_dict.get("temper_baseline", 1.5)
+    temper_scale = config_dict.get("temper_scale", 3.0)  # omega = 1/(1 + S_t/scale)
 
     env, instruction_u, true_goal_obj_id = generate_world(
         seed, N=N, M=M, ambiguity_K=K, allowed_template_ids=allowed_template_ids,
@@ -222,7 +226,10 @@ def _run_episode_impl(policy_name, seed, config_dict):
         "pomcp_planner": policy_pomcp_planner,
         "passive_aware_ask": policy_passive_aware_ask,
         "cost_wait_ask": policy_cost_wait_ask,
+        "mismatch_aware_ask": policy_mismatch_aware_ask,
     }[policy_name]
+
+    _surprise_state = {"S": 0.0}  # persistent surprise state for MismatchAwareAsk
 
     episode_q_cap = _episode_question_cap(max_questions_per_episode)
     policy_max_questions = config.MAX_QUESTIONS
@@ -269,6 +276,7 @@ def _run_episode_impl(policy_name, seed, config_dict):
             "pomcp_horizon": config_dict.get("pomcp_horizon", None),
             "pomcp_uct_c": config_dict.get("pomcp_uct_c", None),
             "wrong_pick_penalty": wrong_pick_penalty,
+            "_surprise_state": _surprise_state,
         }
 
         debug_enabled = debug and K >= debug_min_k and steps < debug_max_steps and policy_name == "ask_or_act"
@@ -354,8 +362,26 @@ def _run_episode_impl(policy_name, seed, config_dict):
             pass  # assistant misses this principal action — no posterior update
         else:
             principal_action_history.append(principal_action)
+            # Compute tempering weight if enabled
+            omega = 1.0
+            if temper_passive and principal_action_history:
+                import math
+                from src.agents.principal import principal_action_probs as _pap
+                # Predictive probability of observed action
+                p_pred = sum(
+                    max(0, posterior.get(g, 0)) * _pap(state, g, env, assistant_beta, assistant_eps).get(principal_action, 1e-10)
+                    for g in candidate_goals
+                )
+                p_pred = max(p_pred, 1e-10)
+                surprise = -math.log(p_pred)
+                # CUSUM accumulator (stored in config_dict for persistence)
+                S_prev = config_dict.get("_temper_S", 0.0)
+                S_t = max(0.0, temper_gamma * S_prev + (surprise - temper_baseline))
+                config_dict["_temper_S"] = S_t
+                omega = 1.0 / (1.0 + S_t / temper_scale)
             update_posterior(
-                posterior, state, principal_action, candidate_goals, env, assistant_beta, assistant_eps
+                posterior, state, principal_action, candidate_goals, env, assistant_beta, assistant_eps,
+                omega=omega,
             )
         state, done, info = env.step(
             principal_action,

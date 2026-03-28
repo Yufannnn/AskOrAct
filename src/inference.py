@@ -28,9 +28,10 @@ def init_posterior(candidate_goals, prior_type="uniform", env=None, assistant_po
     return {g: 1.0 / n for g in candidate_goals}
 
 
-def update_posterior(posterior, state, observed_action, candidate_goals, env, beta, eps):
+def update_posterior(posterior, state, observed_action, candidate_goals, env, beta, eps, omega=1.0):
     """
-    p_{t+1}(g) ∝ p_t(g) * P(a_t | s_t, g). Normalize. Use log-space for numerical stability.
+    p_{t+1}(g) ∝ p_t(g) * P(a_t | s_t, g)^omega. Normalize. Use log-space for numerical stability.
+    omega: tempering weight in (0, 1]. omega=1 is standard Bayes; omega<1 downweights passive evidence.
     posterior: dict obj_id -> probability (updated in place and returned).
     """
     if not candidate_goals or not posterior:
@@ -43,7 +44,7 @@ def update_posterior(posterior, state, observed_action, candidate_goals, env, be
             continue
         probs = principal_action_probs(state, g, env, beta, eps)
         p_a = probs.get(observed_action, 1e-10)
-        log_post[g] = np.log(prev + 1e-15) + np.log(p_a)
+        log_post[g] = np.log(prev + 1e-15) + omega * np.log(p_a)
     if not log_post:
         return posterior
     max_lp = max(log_post.values())
