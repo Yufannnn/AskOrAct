@@ -5,11 +5,26 @@ Bayesian inverse planning: posterior over goals from observed principal actions.
 import numpy as np
 
 
-def init_posterior(candidate_goals):
-    """Uniform prior over candidate goals. Return dict obj_id -> prob (or log_prob)."""
+def init_posterior(candidate_goals, prior_type="uniform", env=None, assistant_pos=None):
+    """Prior over candidate goals. Return dict obj_id -> prob."""
     if not candidate_goals:
         return {}
     n = len(candidate_goals)
+    if prior_type == "distance" and env is not None and assistant_pos is not None:
+        from src.env import grid_distance
+        weights = {}
+        for g in candidate_goals:
+            obj = env.get_object_by_id(g)
+            if obj is None:
+                weights[g] = 1.0
+            else:
+                d = grid_distance(env.N, env.walls, assistant_pos, obj["pos"])
+                if d == float("inf"):
+                    d = 2 * env.N
+                weights[g] = 1.0 / (1.0 + d)
+        z = sum(weights.values())
+        if z > 0:
+            return {g: w / z for g, w in weights.items()}
     return {g: 1.0 / n for g in candidate_goals}
 
 

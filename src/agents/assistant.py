@@ -80,7 +80,7 @@ def V_after_action_approx(env, state, g, assistant_action):
     return _assistant_value_from_pos(env, new_a_pos, g)
 
 
-def _normalized_question_value(env, state, posterior, candidate_goals, q, answer_noise):
+def _normalized_question_value(env, state, posterior, candidate_goals, q, answer_noise, wrong_pick_penalty=0):
     expected_V = 0.0
     total_mass = 0.0
     for ans in q[1]:
@@ -105,6 +105,9 @@ def _normalized_question_value(env, state, posterior, candidate_goals, q, answer
             p_new.get(g, 0.0) * V_after_action_approx(env, state, g, task_act)
             for g in candidate_goals
         )
+        if wrong_pick_penalty > 0:
+            p_wrong = 1.0 - max(p_new.get(g, 0.0) for g in candidate_goals)
+            v_ans += wrong_pick_penalty * p_wrong
         expected_V += p_ans * v_ans
         total_mass += p_ans
     if total_mass <= 0:
@@ -175,7 +178,7 @@ def best_question_info_gain(env, posterior, candidate_goals, answer_noise, asked
     return best_q, best_ig
 
 
-def best_question_cost(state, posterior, candidate_goals, env, answer_noise, question_cost=None, asked_qnames=None):
+def best_question_cost(state, posterior, candidate_goals, env, answer_noise, question_cost=None, asked_qnames=None, wrong_pick_penalty=0):
     question_cost = question_cost if question_cost is not None else config.QUESTION_COST
     asked = set(asked_qnames or [])
     best_q = None
@@ -183,7 +186,7 @@ def best_question_cost(state, posterior, candidate_goals, env, answer_noise, que
     for q in list_questions():
         if q[0] in asked:
             continue
-        expected_v = _normalized_question_value(env, state, posterior, candidate_goals, q, answer_noise)
+        expected_v = _normalized_question_value(env, state, posterior, candidate_goals, q, answer_noise, wrong_pick_penalty=wrong_pick_penalty)
         if expected_v == float("inf"):
             continue
         cost_q = 1.0 + question_cost + expected_v
@@ -193,16 +196,20 @@ def best_question_cost(state, posterior, candidate_goals, env, answer_noise, que
     return best_q, best_cost
 
 
-def CostAct(state, posterior, candidate_goals, env, answer_noise):
+def CostAct(state, posterior, candidate_goals, env, answer_noise, wrong_pick_penalty=0):
     if not candidate_goals or not posterior:
         return 1.0
     g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
     task_act = assistant_task_action(env, state, g_star)
     V = sum(posterior.get(g, 0) * V_after_action_approx(env, state, g, task_act) for g in candidate_goals if posterior.get(g, 0) > 0)
-    return 1.0 + V
+    cost = 1.0 + V
+    if wrong_pick_penalty > 0:
+        p_wrong = 1.0 - posterior.get(g_star, 0)
+        cost += wrong_pick_penalty * p_wrong
+    return cost
 
 
-def CostAsk(state, posterior, candidate_goals, env, answer_noise, question_cost=None, asked_qnames=None):
+def CostAsk(state, posterior, candidate_goals, env, answer_noise, question_cost=None, asked_qnames=None, wrong_pick_penalty=0):
     if not candidate_goals or not posterior:
         return 1.0 + (question_cost if question_cost is not None else config.QUESTION_COST)
     _, best_cost = best_question_cost(
@@ -213,6 +220,7 @@ def CostAsk(state, posterior, candidate_goals, env, answer_noise, question_cost=
         answer_noise=answer_noise,
         question_cost=question_cost,
         asked_qnames=asked_qnames,
+        wrong_pick_penalty=wrong_pick_penalty,
     )
     return best_cost
 
@@ -251,11 +259,13 @@ def policy_always_ask(env, state, instruction_u, posterior, candidate_goals, pri
 
 def policy_ask_or_act(env, state, instruction_u, posterior, candidate_goals, principal_action_history,
                       questions_asked, rng, beta, eps, answer_noise, question_cost=None,
-                      max_questions=None, entropy_gate=None, ask_window=None, asked_qnames=None, **kwargs):
+                      max_questions=None, entropy_gate=None, ask_window=None, asked_qnames=None,
+                      wrong_pick_penalty=None, **kwargs):
     question_cost = question_cost if question_cost is not None else config.QUESTION_COST
     max_questions = max_questions if max_questions is not None else config.MAX_QUESTIONS
     entropy_gate = entropy_gate if entropy_gate is not None else config.ENTROPY_GATE
     ask_window = ask_window if ask_window is not None else config.ASK_WINDOW
+    wpp = wrong_pick_penalty if wrong_pick_penalty is not None else getattr(config, "WRONG_PICK_PENALTY", 0)
     if not candidate_goals or not posterior:
         return "stay", posterior
     if questions_asked >= max_questions:
@@ -270,7 +280,7 @@ def policy_ask_or_act(env, state, instruction_u, posterior, candidate_goals, pri
         g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
         return assistant_task_action(env, state, g_star), posterior
 
-    cost_act = CostAct(state, posterior, candidate_goals, env, answer_noise)
+    cost_act = CostAct(state, posterior, candidate_goals, env, answer_noise, wrong_pick_penalty=wpp)
     best_q, cost_ask = best_question_cost(
         state=state,
         posterior=posterior,
@@ -279,6 +289,7 @@ def policy_ask_or_act(env, state, instruction_u, posterior, candidate_goals, pri
         answer_noise=answer_noise,
         question_cost=question_cost,
         asked_qnames=asked_qnames,
+        wrong_pick_penalty=wpp,
     )
     if best_q is not None and cost_ask < cost_act:
         return ("ask", best_q), posterior

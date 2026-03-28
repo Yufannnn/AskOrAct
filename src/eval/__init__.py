@@ -10,6 +10,12 @@ from src.eval.run import (
     run_generalization_templates,
     run_scale_k,
     oracle_steps,
+    run_generalization_layout,
+    run_generalization_prior,
+    run_generalization_asymmetric_noise,
+    run_structural_ood,
+    run_model_mismatch_extended,
+    run_failure_penalty_sweep,
 )
 from src.eval.plots import (
     load_metrics,
@@ -70,4 +76,10 @@ __all__ = [
     "plot_generalization_templates",
     "plot_scale_k",
     "plot_pareto_k4",
+    "run_generalization_layout",
+    "run_generalization_prior",
+    "run_generalization_asymmetric_noise",
+    "run_structural_ood",
+    "run_model_mismatch_extended",
+    "run_failure_penalty_sweep",
 ]

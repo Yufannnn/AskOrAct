@@ -101,3 +101,33 @@ N_EPISODES_PER_SEED = N_EPISODES_PER_CONDITION
 
 # Parallel evaluation (CPU workers; set 0 to disable)
 N_WORKERS = 0  # 0 = sequential; 4 or 8 to use multiple cores
+
+# -----------------------------------------------------------------------------
+# Generalization experiments
+# -----------------------------------------------------------------------------
+DEFAULT_LAYOUT_TYPE = "vertical"  # "vertical" (default two-room) or "horizontal"
+DEFAULT_PRIOR_TYPE = "uniform"    # "uniform" or "distance"
+ASYMMETRIC_NOISE_BY_QTYPE = {
+    "color": 0.05,
+    "room": 0.10,
+    "object": 0.40,  # deliberately harsh (default 0.20)
+}
+GENERALIZATION_POLICIES = ["ask_or_act", "never_ask", "info_gain_ask"]
+
+# -----------------------------------------------------------------------------
+# Structural OOD experiments
+# -----------------------------------------------------------------------------
+STRUCTURAL_OOD_GRID_SIZES = [7, 9, 11]
+STRUCTURAL_OOD_ROOM_CONFIGS = [True, False]  # two_rooms: True (default), False (single room)
+STRUCTURAL_OOD_POLICIES = ["ask_or_act", "never_ask", "info_gain_ask"]
+
+# -----------------------------------------------------------------------------
+# Model-mismatch experiments (extended)
+# -----------------------------------------------------------------------------
+MISMATCH_POLICIES = ["ask_or_act", "never_ask", "info_gain_ask"]
+
+# -----------------------------------------------------------------------------
+# Failure penalty sweep
+# -----------------------------------------------------------------------------
+FAILURE_PENALTY_VALUES = [0, 5, 10, 20, 50]
+FAILURE_PENALTY_POLICIES = ["ask_or_act", "never_ask", "info_gain_ask"]

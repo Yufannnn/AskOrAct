@@ -22,7 +22,7 @@ def _free_cells(N, walls):
     return out
 
 
-def _build_walls_and_doorway(N):
+def _build_walls_and_doorway(N, layout_type="vertical", two_rooms=None):
     walls = set()
     for r in range(N):
         walls.add((r, 0))
@@ -31,23 +31,31 @@ def _build_walls_and_doorway(N):
         walls.add((0, c))
         walls.add((N - 1, c))
     doorway = None
-    if config.TWO_ROOMS and N >= 5:
+    use_two_rooms = config.TWO_ROOMS if two_rooms is None else two_rooms
+    if use_two_rooms and N >= 5:
         mid = N // 2
-        for r in range(1, N - 1):
-            if r != mid:
-                walls.add((r, mid))
+        if layout_type == "horizontal":
+            for c in range(1, N - 1):
+                if c != mid:
+                    walls.add((mid, c))
+        else:  # vertical (default)
+            for r in range(1, N - 1):
+                if r != mid:
+                    walls.add((r, mid))
         doorway = (mid, mid)
     return walls, doorway
 
 
-def _room_id_from_pos(pos, N, doorway):
+def _room_id_from_pos(pos, N, doorway, layout_type="vertical"):
     if doorway is None:
         return 0
     mid = N // 2
+    if layout_type == "horizontal":
+        return 0 if pos[0] < mid else 1
     return 0 if pos[1] < mid else 1
 
 
-def _candidate_positions_ok(candidate_positions, N, walls, doorway):
+def _candidate_positions_ok(candidate_positions, N, walls, doorway, layout_type="vertical"):
     if len(candidate_positions) <= 1:
         return True
     min_pairwise_dist = N // 2
@@ -57,13 +65,13 @@ def _candidate_positions_ok(candidate_positions, N, walls, doorway):
             if d < min_pairwise_dist:
                 return False
     if config.TWO_ROOMS and doorway is not None:
-        rooms = {_room_id_from_pos(p, N, doorway) for p in candidate_positions}
+        rooms = {_room_id_from_pos(p, N, doorway, layout_type) for p in candidate_positions}
         if len(rooms) < 2:
             return False
     return True
 
 
-def _sample_candidate_positions(rng, free_cells, K, N, walls, doorway):
+def _sample_candidate_positions(rng, free_cells, K, N, walls, doorway, layout_type="vertical"):
     if K <= 0:
         return []
     if K == 1:
@@ -72,19 +80,21 @@ def _sample_candidate_positions(rng, free_cells, K, N, walls, doorway):
     for _ in range(1000):
         ids = rng.choice(len(free_cells), size=K, replace=False)
         positions = [free_cells[i] for i in ids]
-        if _candidate_positions_ok(positions, N, walls, doorway):
+        if _candidate_positions_ok(positions, N, walls, doorway, layout_type):
             return positions
     return None
 
 
-def generate_world(seed, N=None, M=None, ambiguity_K=2, allowed_template_ids=None):
+def generate_world(seed, N=None, M=None, ambiguity_K=2, allowed_template_ids=None, layout_type=None, two_rooms=None):
     """Returns (env, instruction_u, true_goal_obj_id)."""
     N = N or config.DEFAULT_N
     M = M or config.DEFAULT_M
     K = min(ambiguity_K, M)
+    if layout_type is None:
+        layout_type = getattr(config, "DEFAULT_LAYOUT_TYPE", "vertical")
     for attempt in range(200):
         rng = np.random.default_rng(seed + attempt)
-        walls, doorway = _build_walls_and_doorway(N)
+        walls, doorway = _build_walls_and_doorway(N, layout_type, two_rooms=two_rooms)
         free = _free_cells(N, walls)
         if len(free) < M + 2:
             raise ValueError("Not enough free cells for M objects and 2 agents")
@@ -155,11 +165,11 @@ def generate_world(seed, N=None, M=None, ambiguity_K=2, allowed_template_ids=Non
         if len(candidate_idxs) != K:
             continue
 
-        candidate_positions = _sample_candidate_positions(rng, free, K, N, walls, doorway)
+        candidate_positions = _sample_candidate_positions(rng, free, K, N, walls, doorway, layout_type)
         if candidate_positions is None:
             continue
         if template_id == 2 and doorway is not None:
-            room_filtered = [p for p in candidate_positions if _room_id_from_pos(p, N, doorway) == true_room_id]
+            room_filtered = [p for p in candidate_positions if _room_id_from_pos(p, N, doorway, layout_type) == true_room_id]
             if not room_filtered:
                 continue
             candidate_positions = [room_filtered[0]]
@@ -185,7 +195,7 @@ def generate_world(seed, N=None, M=None, ambiguity_K=2, allowed_template_ids=Non
             continue
 
         for o in objects:
-            o["room_id"] = _room_id_from_pos(o["pos"], N, doorway)
+            o["room_id"] = _room_id_from_pos(o["pos"], N, doorway, layout_type)
 
         rng.shuffle(objects)
         for i, o in enumerate(objects):
@@ -196,7 +206,7 @@ def generate_world(seed, N=None, M=None, ambiguity_K=2, allowed_template_ids=Non
             continue
         if K >= 2:
             candidate_pos = [o["pos"] for o in objects if matches(o["type"], o["color"], o["room_id"])]
-            if not _candidate_positions_ok(candidate_pos, N, walls, doorway):
+            if not _candidate_positions_ok(candidate_pos, N, walls, doorway, layout_type):
                 continue
         true_goal_obj_id = int(rng.choice(matching_ids))
 
@@ -225,7 +235,7 @@ def generate_world(seed, N=None, M=None, ambiguity_K=2, allowed_template_ids=Non
         if K >= 2:
             c_objs = [env.get_object_by_id(g) for g in candidates]
             c_positions = [o["pos"] for o in c_objs if o is not None]
-            if len(c_positions) != K or not _candidate_positions_ok(c_positions, N, walls, doorway):
+            if len(c_positions) != K or not _candidate_positions_ok(c_positions, N, walls, doorway, layout_type):
                 continue
         return env, u, true_goal_obj_id
 
