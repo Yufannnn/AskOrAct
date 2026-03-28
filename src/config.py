@@ -131,3 +131,15 @@ MISMATCH_POLICIES = ["ask_or_act", "never_ask", "info_gain_ask"]
 # -----------------------------------------------------------------------------
 FAILURE_PENALTY_VALUES = [0, 5, 10, 20, 50]
 FAILURE_PENALTY_POLICIES = ["ask_or_act", "never_ask", "info_gain_ask"]
+
+# -----------------------------------------------------------------------------
+# Action-drop (passive channel degradation)
+# -----------------------------------------------------------------------------
+ACTION_DROP_RATES = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+ACTION_DROP_POLICIES = ["ask_or_act", "never_ask", "info_gain_ask"]
+
+# -----------------------------------------------------------------------------
+# Cost × Passive-quality heatmap
+# -----------------------------------------------------------------------------
+HEATMAP_CQ_LEVELS = [0.0, 0.1, 0.3, 0.5, 0.7, 1.0, 1.5]
+HEATMAP_DROP_LEVELS = [0.0, 0.2, 0.4, 0.6, 0.8]

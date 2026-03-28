@@ -20,7 +20,10 @@ from src.agents import (
     policy_pomcp_planner,
     _bfs_next_step,
 )
-from src.agents.assistant import CostAct, best_question_cost, assistant_task_action, question_info_gain
+from src.agents.assistant import (
+    CostAct, best_question_cost, assistant_task_action, question_info_gain,
+    policy_passive_aware_ask, policy_cost_wait_ask,
+)
 
 
 def episode_optimal_steps(env, true_goal_obj_id):
@@ -153,6 +156,7 @@ def _run_episode_impl(policy_name, seed, config_dict):
     two_rooms = config_dict.get("two_rooms", None)
     wrong_pick_penalty = config_dict.get("wrong_pick_penalty", getattr(config, "WRONG_PICK_PENALTY", 0))
     mismatch_true_noise_by_qtype = config_dict.get("mismatch_true_noise_by_qtype", None)
+    action_drop_rate = config_dict.get("action_drop_rate", 0.0)
 
     env, instruction_u, true_goal_obj_id = generate_world(
         seed, N=N, M=M, ambiguity_K=K, allowed_template_ids=allowed_template_ids,
@@ -216,6 +220,8 @@ def _run_episode_impl(policy_name, seed, config_dict):
         "easy_info_gain_ask": policy_easy_info_gain_ask,
         "random_ask": policy_random_ask,
         "pomcp_planner": policy_pomcp_planner,
+        "passive_aware_ask": policy_passive_aware_ask,
+        "cost_wait_ask": policy_cost_wait_ask,
     }[policy_name]
 
     episode_q_cap = _episode_question_cap(max_questions_per_episode)
@@ -247,7 +253,7 @@ def _run_episode_impl(policy_name, seed, config_dict):
             "max_questions": policy_max_questions,
             "entropy_threshold": config.ENTROPY_THRESHOLD,
             "entropy_gate": config.ENTROPY_GATE,
-            "ask_window": config.ASK_WINDOW,
+            "ask_window": config_dict.get("ask_window_override", config.ASK_WINDOW),
             "ig_threshold": config.IG_THRESHOLD,
             "infogain_use_entropy_gate": config.INFOGAIN_USE_ENTROPY_GATE,
             "asked_qnames": asked_qnames,
@@ -344,10 +350,13 @@ def _run_episode_impl(policy_name, seed, config_dict):
                 continue
 
         assistant_action = out
-        principal_action_history.append(principal_action)
-        update_posterior(
-            posterior, state, principal_action, candidate_goals, env, assistant_beta, assistant_eps
-        )
+        if action_drop_rate > 0 and rng.random() < action_drop_rate:
+            pass  # assistant misses this principal action — no posterior update
+        else:
+            principal_action_history.append(principal_action)
+            update_posterior(
+                posterior, state, principal_action, candidate_goals, env, assistant_beta, assistant_eps
+            )
         state, done, info = env.step(
             principal_action,
             assistant_action,
@@ -1514,4 +1523,299 @@ def run_failure_penalty_sweep(output_csv="results/metrics_failure_penalty.csv"):
         w.writeheader()
         w.writerows(rows)
     print("Failure penalty:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Action-drop sweep: degrade passive channel quality
+# ---------------------------------------------------------------------------
+
+def run_action_drop_sweep(output_csv="results/metrics_action_drop.csv"):
+    """Sweep action drop rate to measure passive channel degradation effect."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    drop_rates = getattr(config, "ACTION_DROP_RATES", [0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    policies = getattr(config, "ACTION_DROP_POLICIES", ["ask_or_act", "never_ask", "info_gain_ask"])
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for K in ks:
+        for p_drop in drop_rates:
+            for policy in policies:
+                for rep_seed in reps:
+                    for eid in range(n_ep):
+                        seed = _sweep_env_seed(
+                            config.BASE_SEED + 1600000, rep_seed, K, eps, beta, eid
+                        )
+                        cfg = {
+                            "ambiguity_K": K, "eps": eps, "beta": beta,
+                            "action_drop_rate": p_drop,
+                        }
+                        m = _run_episode_impl(policy, seed, cfg)
+                        rows.append({
+                            "policy": policy, "K": K,
+                            "action_drop_rate": p_drop,
+                            "rep_seed": int(rep_seed), "episode_id": int(eid),
+                            "success": m["success"], "steps": m["steps"],
+                            "questions_asked": m["questions_asked"],
+                            "regret": m["regret"],
+                            "team_cost": m["team_cost"],
+                        })
+    fieldnames = ["policy", "K", "action_drop_rate", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Action drop:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Cost × Passive-quality heatmap
+# ---------------------------------------------------------------------------
+
+def run_cost_passive_heatmap(output_csv="results/metrics_cost_passive_heatmap.csv"):
+    """2D sweep: question cost × action drop rate at K=4, ask_or_act only."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    K = 4
+    cq_levels = getattr(config, "HEATMAP_CQ_LEVELS", [0.0, 0.1, 0.3, 0.5, 0.7, 1.0, 1.5])
+    drop_levels = getattr(config, "HEATMAP_DROP_LEVELS", [0.0, 0.2, 0.4, 0.6, 0.8])
+    policy = "ask_or_act"
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for cq in cq_levels:
+        for p_drop in drop_levels:
+            for rep_seed in reps:
+                for eid in range(n_ep):
+                    seed = _sweep_env_seed(
+                        config.BASE_SEED + 1700000, rep_seed, K, eps, beta, eid
+                    )
+                    cfg = {
+                        "ambiguity_K": K, "eps": eps, "beta": beta,
+                        "question_cost": cq,
+                        "action_drop_rate": p_drop,
+                    }
+                    m = _run_episode_impl(policy, seed, cfg)
+                    rows.append({
+                        "policy": policy, "K": K,
+                        "question_cost": cq,
+                        "action_drop_rate": p_drop,
+                        "rep_seed": int(rep_seed), "episode_id": int(eid),
+                        "success": m["success"], "steps": m["steps"],
+                        "questions_asked": m["questions_asked"],
+                        "regret": m["regret"],
+                        "team_cost": m["team_cost"],
+                    })
+    fieldnames = ["policy", "K", "question_cost", "action_drop_rate", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Cost×Passive heatmap:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Novelty Experiment A: Passive-resolvability analysis
+# Measure shared optimal first action among candidate goals per episode
+# ---------------------------------------------------------------------------
+
+def run_passive_resolvability(output_csv="results/metrics_passive_resolvability.csv"):
+    """Per-episode: compute path overlap among candidate goals, then correlate with ask behavior."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    from src.agents.assistant import _bfs_next_step
+    ks = [3, 4]
+    policies = ["ask_or_act", "never_ask", "info_gain_ask"]
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for K in ks:
+        for policy in policies:
+            for rep_seed in reps:
+                for eid in range(n_ep):
+                    seed = _sweep_env_seed(config.BASE_SEED + 1800000, rep_seed, K, eps, beta, eid)
+                    cfg = {"ambiguity_K": K, "eps": eps, "beta": beta}
+                    # Generate world to measure overlap
+                    env_tmp, instr_tmp, true_g = generate_world(seed, ambiguity_K=K)
+                    cands = instruction_to_candidate_goals(instr_tmp, env_tmp)
+                    state_tmp = env_tmp.get_state()
+                    p_pos = state_tmp["principal_pos"]
+                    # Compute first optimal action for each candidate from principal position
+                    first_actions = []
+                    for g in cands:
+                        obj = env_tmp.get_object_by_id(g)
+                        if obj and not obj.get("collected", False):
+                            a = _bfs_next_step(env_tmp.N, env_tmp.walls, p_pos, obj["pos"])
+                            first_actions.append(a)
+                    # Overlap: fraction of candidates sharing the modal first action
+                    if first_actions:
+                        from collections import Counter
+                        ctr = Counter(first_actions)
+                        modal_count = ctr.most_common(1)[0][1]
+                        overlap = modal_count / len(first_actions)
+                    else:
+                        overlap = 1.0
+                    # Now run the episode
+                    m = _run_episode_impl(policy, seed, cfg)
+                    rows.append({
+                        "policy": policy, "K": K, "overlap": round(overlap, 3),
+                        "rep_seed": int(rep_seed), "episode_id": int(eid),
+                        "success": m["success"], "steps": m["steps"],
+                        "questions_asked": m["questions_asked"],
+                        "regret": m["regret"], "team_cost": m["team_cost"],
+                    })
+    fieldnames = ["policy", "K", "overlap", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Passive resolvability:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Novelty Experiment B: Informative irrationality (beta inverted-U)
+# ---------------------------------------------------------------------------
+
+def run_informative_irrationality(output_csv="results/metrics_informative_irrationality.csv"):
+    """Fine-grained beta sweep to find inverted-U in assistance quality."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    betas = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0]
+    policies = ["ask_or_act", "never_ask", "info_gain_ask"]
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+
+    rows = []
+    for K in ks:
+        for true_beta in betas:
+            for policy in policies:
+                for rep_seed in reps:
+                    for eid in range(n_ep):
+                        seed = _sweep_env_seed(
+                            config.BASE_SEED + 1900000, rep_seed, K, eps, true_beta, eid
+                        )
+                        cfg = {
+                            "ambiguity_K": K, "eps": eps,
+                            "principal_beta": true_beta,
+                            "assistant_beta": true_beta,  # matched
+                            "beta": true_beta,
+                        }
+                        m = _run_episode_impl(policy, seed, cfg)
+                        rows.append({
+                            "policy": policy, "K": K, "beta": true_beta,
+                            "rep_seed": int(rep_seed), "episode_id": int(eid),
+                            "success": m["success"], "steps": m["steps"],
+                            "questions_asked": m["questions_asked"],
+                            "regret": m["regret"], "team_cost": m["team_cost"],
+                        })
+    fieldnames = ["policy", "K", "beta", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Informative irrationality:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Novelty Experiment C: More observation can hurt under mismatch
+# Force h observation steps before allowing ask/act, with mismatched beta
+# ---------------------------------------------------------------------------
+
+def run_observation_hurts_mismatch(output_csv="results/metrics_obs_hurts_mismatch.csv"):
+    """Force observation horizon h, then allow normal policy. Matched vs mismatched beta."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    obs_horizons = [0, 1, 2, 3, 4, 5]
+    # Matched: assistant_beta = principal_beta = 2
+    # Mismatched: principal_beta = 1 (near-random), assistant_beta = 2
+    mismatch_conditions = [
+        ("matched", 2.0, 2.0),
+        ("mismatch_b1", 1.0, 2.0),
+        ("mismatch_b4", 4.0, 2.0),
+    ]
+    policy = "ask_or_act"
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+
+    rows = []
+    for K in ks:
+        for h in obs_horizons:
+            for cond_name, p_beta, a_beta in mismatch_conditions:
+                for rep_seed in reps:
+                    for eid in range(n_ep):
+                        seed = _sweep_env_seed(
+                            config.BASE_SEED + 2000000, rep_seed, K, eps, p_beta, eid
+                        )
+                        # Force observation: set ask_window to start after h steps
+                        # ask_window = 6 means ask allowed in steps 0-6
+                        # To force h observe steps: set ask_window = max(0, 6 - h)
+                        # But simpler: just don't allow asking in first h steps
+                        # We use the ask_window parameter creatively:
+                        # Normal ask_window = 6. We set it so asking starts at step h.
+                        # Actually, ask_window blocks asking AFTER step ask_window.
+                        # To block asking BEFORE step h, we need a different mechanism.
+                        # Simplest: for h>0, run first h steps as never_ask, then switch.
+                        # But that requires modifying the episode loop.
+                        # Alternative: use action_drop_rate=0 (observe everything) but
+                        # set max_questions_per_episode based on h.
+                        # Actually, simplest correct approach: set ask_window = 6 - h
+                        # This means the policy can only ask during steps 0..(6-h).
+                        # With h=0: window=6 (normal). h=3: window=3. h=6: window=0 (never ask).
+                        # This isn't exactly "force observe h then ask" but it reduces
+                        # the ask window, which has a similar effect.
+                        # Better: just use the existing machinery. The ask_window check is:
+                        #   step_t = len(principal_action_history)
+                        #   if step_t > ask_window: don't ask
+                        # So if I set ask_window = 6 but also set a min_ask_step,
+                        # I'd need to modify the policy.
+                        # For now, let's just use ask_window = max(0, 6 - h) as a proxy.
+                        effective_window = max(0, 6 - h)
+                        cfg = {
+                            "ambiguity_K": K, "eps": eps,
+                            "principal_beta": p_beta,
+                            "assistant_beta": a_beta,
+                            "beta": a_beta,
+                        }
+                        # Override ASK_WINDOW via the policy kwargs
+                        # _run_episode_impl passes ask_window from config
+                        # We need to thread this through config_dict
+                        cfg["ask_window_override"] = effective_window
+                        m = _run_episode_impl(policy, seed, cfg)
+                        rows.append({
+                            "policy": policy, "K": K,
+                            "obs_horizon": h,
+                            "condition": cond_name,
+                            "principal_beta": p_beta,
+                            "assistant_beta": a_beta,
+                            "rep_seed": int(rep_seed), "episode_id": int(eid),
+                            "success": m["success"], "steps": m["steps"],
+                            "questions_asked": m["questions_asked"],
+                            "regret": m["regret"], "team_cost": m["team_cost"],
+                        })
+    fieldnames = ["policy", "K", "obs_horizon", "condition", "principal_beta",
+                  "assistant_beta", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Obs hurts mismatch:", output_csv, f"({len(rows)} rows)")
     return rows

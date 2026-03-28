@@ -5,7 +5,11 @@ import os
 import numpy as np
 
 try:
+    import matplotlib
     import matplotlib.pyplot as plt
+    matplotlib.rcParams["font.family"] = "serif"
+    matplotlib.rcParams["font.serif"] = ["Times New Roman", "DejaVu Serif", "serif"]
+    matplotlib.rcParams["mathtext.fontset"] = "stix"
 except ImportError:
     plt = None
 
@@ -1061,7 +1065,7 @@ def plot_setup_overview(output_path="results/setup_overview.png"):
     # Title and subtitle.
     ax.text(0.6, 10.48, "Task setup: ambiguous instruction, hidden goal, and shared world state",
             fontsize=13.5, fontweight="bold", color="#202020")
-    ax.text(0.65, 9.98, "Example shown for K\u2009=\u20093: three red objects match the same instruction, "
+    ax.text(0.65, 9.98, "Example shown for K = 3: three red objects match the same instruction, "
             "but only one is the principal's goal.",
             fontsize=9.2, color="#404040", va="top")
 
@@ -1072,101 +1076,212 @@ def plot_setup_overview(output_path="results/setup_overview.png"):
 
 
 def plot_ask_or_act_pipeline(output_path="results/ask_or_act_pipeline.png"):
-    """Draw a conceptual decision-flow diagram for AskOrAct."""
+    """Draw a polished vertical decision-flow diagram for AskOrAct."""
     if plt is None:
         return
-    from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
+    import matplotlib.patheffects as pe
+    from matplotlib.patches import FancyBboxPatch
 
-    fig, ax = plt.subplots(1, 1, figsize=(14, 6.5), constrained_layout=True)
-    ax.set_xlim(0, 14)
-    ax.set_ylim(0, 8)
+    # --- Cohesive palette ---
+    C = {
+        "bg": "#F8FAFД",
+        "node": "#F4F7FB",
+        "node_edge": "#B8C5D9",
+        "text": "#1F2937",
+        "muted": "#6B7280",
+        "accent1": "#4F6D8F",   # pipeline spine accent
+        "ask": "#2563EB",       # blue
+        "ask_bg": "#EFF6FF",
+        "act": "#0D9488",       # teal
+        "act_bg": "#F0FDFA",
+        "decision": "#7C3AED",  # purple for decision node
+        "decision_bg": "#F5F3FF",
+        "guard": "#E5EAF3",
+        "guard_edge": "#9CA3AF",
+    }
+    # Fix typo in hex (Cyrillic Д -> D)
+    C["bg"] = "#F8FAFD"
+
+    shadow_fx = [
+        pe.withSimplePatchShadow(
+            offset=(1.5, -1.5), shadow_rgbFace=(0.15, 0.2, 0.3), alpha=0.10
+        ),
+        pe.Normal(),
+    ]
+
+    arrow_kw = dict(
+        arrowstyle="-|>",
+        lw=2.0,
+        color=C["accent1"],
+        shrinkA=8,
+        shrinkB=8,
+        mutation_scale=14,
+        joinstyle="round",
+        capstyle="round",
+    )
+
+    W = 3.4
+    H = 5.5
+    fig, ax = plt.subplots(1, 1, figsize=(W, H))
+    ax.set_xlim(0, 6.8)
+    ax.set_ylim(0, 11.0)
     ax.axis("off")
+    fig.patch.set_facecolor(C["bg"])
+    ax.set_facecolor(C["bg"])
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
-    def _box(x, y, w, h, title, body, face, edge):
-        ax.add_patch(FancyBboxPatch(
-            (x, y), w, h,
-            boxstyle="round,pad=0.08,rounding_size=0.10",
-            facecolor=face, edgecolor=edge, linewidth=1.3,
-        ))
-        ax.text(x + 0.12, y + h - 0.16, title,
-                fontsize=11.4, fontweight="bold", color=edge, va="top")
-        ax.text(x + 0.12, y + h - 0.50, body,
-                fontsize=9.8, color="#303030", va="top", linespacing=1.15)
+    bw = 5.7
+    bx = 0.55
+    cx = bx + bw / 2
 
-    def _arrow(x0, y0, x1, y1, text=None, text_off=(0, 0.10),
-               color="#5b5b5b", rad=0.0, fontsize=9.0):
-        ax.add_patch(FancyArrowPatch(
-            (x0, y0), (x1, y1),
-            arrowstyle="->", mutation_scale=13, linewidth=1.3,
-            color=color, connectionstyle=f"arc3,rad={rad}",
-        ))
-        if text:
-            mx = (x0 + x1) / 2.0 + text_off[0]
-            my = (y0 + y1) / 2.0 + text_off[1]
-            ax.text(mx, my, text, fontsize=fontsize, color=color, ha="center", va="bottom")
+    def _box(y, h, label, body, face, edge, lw=1.4, shadow=True):
+        p = FancyBboxPatch(
+            (bx, y), bw, h,
+            boxstyle="round,pad=0.07,rounding_size=0.16",
+            facecolor=face, edgecolor=edge, linewidth=lw, zorder=2,
+        )
+        if shadow:
+            p.set_path_effects(shadow_fx)
+        ax.add_patch(p)
+        ax.text(cx, y + h - 0.14, label,
+                fontsize=8.5, fontweight="semibold", color=edge,
+                ha="center", va="top", zorder=3)
+        ax.text(cx, y + h - 0.42, body,
+                fontsize=7, color=C["text"], ha="center", va="top",
+                linespacing=1.18, zorder=3)
 
-    # ---- boxes ----
-    # Top row: h=1.30
-    _box(0.35, 5.35, 1.95, 1.30, "1. Instruction u",
-         "templated language\nidentifies K candidates", "#fff7e6", "#9a6700")
-    _box(2.55, 5.35, 2.05, 1.30, "2. Candidate goals G",
-         "objects consistent\nwith instruction", "#f4f1fb", "#6c4aa4")
-    _box(4.85, 5.35, 2.35, 1.30, "3. Posterior b_t(g)",
-         "belief over goals;\ninit from instruction", "#edf6ff", "#356c9b")
-    _box(7.65, 5.35, 5.70, 1.30, "6. Evaluate decision",
-         "CostAct = E[dist to goal under b_t]\nCostAsk = 1 + c_q + E[CostAct | answer]",
-         "#fff7e6", "#9a6700")
+    def _varrow(y0, y1, x=None, color=None):
+        x = x if x is not None else cx
+        kw = {**arrow_kw, "color": color or C["accent1"]}
+        ax.annotate("", xy=(x, y1), xytext=(x, y0), arrowprops=kw)
 
-    # Middle row: h=1.45 (box 4/5), h=1.30 (Gates)
-    _box(0.35, 3.45, 2.40, 1.45, "4. Principal action",
-         "observe principal's move;\nupdate inverse-planning\nevidence", "#fff3f0", "#b04a3f")
-    _box(3.55, 3.45, 3.80, 1.45, "5. Bayesian update",
-         "b_{t+1}(g) ∝ b_t(g)·π(a_t|s_t,g)\n+ answer-likelihood update\nif a question was asked",
-         "#eef8ee", "#3d7d3d")
-    _box(7.65, 3.45, 5.70, 1.30, "Gates",
-         "entropy gate: H(b_t) > 0.3\nask window: step ≤ 6\nbudget: ≤ 3 questions/ep",
-         "#f4f4f4", "#666666")
+    # ---- Pipeline nodes (top → bottom, compact spacing) ----
+    def _numbered_box(y, h, num, title, body, face, edge, lw=1.4):
+        """Draw a box with a circled step number badge on the left."""
+        _box(y, h, title, body, face, edge, lw=lw)
+        badge_x = bx + 0.35
+        badge_y = y + h - 0.26
+        badge = plt.Circle((badge_x, badge_y), 0.20,
+                            facecolor=edge, edgecolor="white",
+                            linewidth=1.0, zorder=4)
+        ax.add_patch(badge)
+        ax.text(badge_x, badge_y, str(num), fontsize=7, fontweight="bold",
+                color="white", ha="center", va="center", zorder=5)
 
-    # Bottom row: h=1.05
-    _box(8.35, 1.55, 2.15, 1.05, "ASK",
-         "choose q* = argmax IG\nif CostAsk < CostAct", "#eef8ee", "#3d7d3d")
-    _box(10.95, 1.55, 2.15, 1.05, "ACT",
-         "move toward MAP goal;\npick when adjacent", "#edf6ff", "#356c9b")
+    _numbered_box(9.85, 0.85, 1, "Instruction  $u$",
+                  "templated language identifies $K$ candidates",
+                  "#FFF8F0", "#B45309")
 
-    # ---- arrows ----
-    # Top chain: 1→2→3→6
-    _arrow(2.30, 6.00, 2.55, 6.00, color="#9a6700")
-    _arrow(4.60, 6.00, 4.85, 6.00, color="#6c4aa4")
-    _arrow(7.20, 6.00, 7.65, 6.00, color="#356c9b")
-    # 4→5 with "inverse planning" label (gap now 0.8 units)
-    _arrow(2.75, 4.18, 3.55, 4.18,
-           text="inv. planning", text_off=(0, 0.12), color="#b04a3f")
-    # 5→6 (diagonal up-right through clear gap)
-    _arrow(7.35, 4.20, 7.65, 5.98, color="#3d7d3d")
-    # 6→Gates (straight down)
-    _arrow(10.50, 5.35, 10.50, 4.75, color="#666666")
-    # Gates→ASK / Gates→ACT
-    _arrow(9.43, 3.45, 9.43, 2.60,
-           text="if ask", text_off=(-0.45, 0.02), color="#3d7d3d")
-    _arrow(12.03, 3.45, 12.03, 2.60,
-           text="if act", text_off=(0.45, 0.02), color="#356c9b")
-    # ASK → Box 5 feedback
-    _arrow(8.50, 2.58, 5.95, 3.45,
-           text="updates b_t", text_off=(0, 0.10), color="#3d7d3d", rad=0.08)
-    # ACT → Posterior (right-edge route: curves up-right then left to box 3)
-    _arrow(13.10, 2.60, 7.20, 5.35,
-           text="new obs.", text_off=(1.2, 0.0), color="#356c9b", rad=-0.35)
+    _numbered_box(8.55, 0.85, 2, "Candidate goals  $G$",
+                  "objects matching the instruction",
+                  C["node"], C["node_edge"])
 
-    # ---- title ----
-    ax.text(0.35, 7.75, "AskOrAct decision flow",
-            fontsize=13.5, fontweight="bold", color="#202020")
-    ax.text(0.35, 7.30,
-            "The assistant alternates between belief updates and a "
-            "one-step expected-cost comparison between asking and acting.",
-            fontsize=9.8, color="#404040")
+    _numbered_box(7.25, 0.85, 3, "Posterior  $b(g)$",
+                  "belief over goals, init uniform $1/K$",
+                  C["node"], C["node_edge"])
+
+    _numbered_box(5.70, 1.10, 4, "Bayesian update",
+                  "observe principal action (inverse planning)\n"
+                  "+ answer likelihood if question asked",
+                  C["node"], C["accent1"], lw=1.6)
+
+    _numbered_box(4.05, 1.10, 5, "Evaluate decision",
+                  "$\\mathrm{CostAct} = \\mathbb{E}[\\mathrm{dist}]$\n"
+                  "$\\mathrm{CostAsk} = 1 + c_q "
+                  "+ \\mathbb{E}[\\mathrm{CostAct} \\mid \\mathrm{ans}]$",
+                  C["decision_bg"], C["decision"], lw=1.6)
+
+    # ---- Spine arrows ----
+    _varrow(9.85, 9.40, color="#B45309")
+    _varrow(8.55, 8.10, color=C["node_edge"])
+    _varrow(7.25, 6.80, color=C["node_edge"])
+    _varrow(5.70, 5.15, color=C["accent1"])
+
+    # ---- ASK / ACT split ----
+    askw = 2.65
+    ask_p = FancyBboxPatch(
+        (bx, 2.30), askw, 1.20,
+        boxstyle="round,pad=0.07,rounding_size=0.16",
+        facecolor=C["ask_bg"], edgecolor=C["ask"], linewidth=1.6, zorder=2,
+    )
+    ask_p.set_path_effects(shadow_fx)
+    ax.add_patch(ask_p)
+    # Accent top stripe for ASK
+    ax.plot([bx + 0.16, bx + askw - 0.16], [3.48, 3.48],
+            color=C["ask"], lw=2.8, solid_capstyle="round", zorder=3)
+    ax.text(bx + askw / 2, 3.36, "ASK", fontsize=9.5, fontweight="bold",
+            color=C["ask"], ha="center", va="top", zorder=3)
+    ax.text(bx + askw / 2, 3.02,
+            "select $q^* = \\arg\\min$ CostAsk\nupdate posterior",
+            fontsize=7, color=C["text"], ha="center", va="top",
+            linespacing=1.18, zorder=3)
+
+    actx = bx + askw + 0.4
+    actw = bw - askw - 0.4
+    act_p = FancyBboxPatch(
+        (actx, 2.30), actw, 1.20,
+        boxstyle="round,pad=0.07,rounding_size=0.16",
+        facecolor=C["act_bg"], edgecolor=C["act"], linewidth=1.6, zorder=2,
+    )
+    act_p.set_path_effects(shadow_fx)
+    ax.add_patch(act_p)
+    # Accent top stripe for ACT
+    ax.plot([actx + 0.16, actx + actw - 0.16], [3.48, 3.48],
+            color=C["act"], lw=2.8, solid_capstyle="round", zorder=3)
+    ax.text(actx + actw / 2, 3.36, "ACT", fontsize=9.5, fontweight="bold",
+            color=C["act"], ha="center", va="top", zorder=3)
+    ax.text(actx + actw / 2, 3.02,
+            "A* to MAP goal\npick up object",
+            fontsize=7, color=C["text"], ha="center", va="top",
+            linespacing=1.18, zorder=3)
+
+    # ---- Decision → ASK / ACT arrows ----
+    ask_cx = bx + askw / 2
+    act_cx = actx + actw / 2
+    ax.annotate("", xy=(ask_cx, 3.50), xytext=(cx - 0.5, 4.05),
+                arrowprops={**arrow_kw, "color": C["ask"],
+                            "connectionstyle": "arc3,rad=0.10"})
+    ax.annotate("", xy=(act_cx, 3.50), xytext=(cx + 0.5, 4.05),
+                arrowprops={**arrow_kw, "color": C["act"],
+                            "connectionstyle": "arc3,rad=-0.10"})
+
+    # ---- Guards footer bar ----
+    guard_p = FancyBboxPatch(
+        (bx, 1.55), bw, 0.50,
+        boxstyle="round,pad=0.05,rounding_size=0.10",
+        facecolor=C["guard"], edgecolor=C["guard_edge"],
+        linewidth=1.0, zorder=2,
+    )
+    ax.add_patch(guard_p)
+    ax.text(cx, 1.80, "Guards:   $H(b) > 0.3$  ·  step $\\leq 6$  ·  $Q \\leq 3$",
+            fontsize=7, color=C["muted"], ha="center", va="center", zorder=3,
+            fontweight="medium")
+
+    # Guards → ASK / ACT
+    _varrow(2.05, 2.30, x=ask_cx, color=C["guard_edge"])
+    _varrow(2.05, 2.30, x=act_cx, color=C["guard_edge"])
+
+    # ---- Feedback loop: ASK → Bayesian update ----
+    ax.annotate(
+        "", xy=(bx - 0.05, 6.30), xytext=(bx - 0.05, 2.90),
+        arrowprops=dict(
+            arrowstyle="-|>",
+            lw=2.0,
+            color=C["ask"],
+            shrinkA=5,
+            shrinkB=5,
+            mutation_scale=13,
+            connectionstyle="arc3,rad=0.28",
+            joinstyle="round",
+            capstyle="round",
+        ),
+    )
+    ax.text(-0.10, 4.60, "loop", fontsize=7, color=C["ask"], rotation=90,
+            ha="center", va="center", fontstyle="italic", fontweight="medium")
 
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-    fig.savefig(output_path, dpi=200)
+    fig.savefig(output_path, dpi=300, bbox_inches="tight", pad_inches=0.06,
+                facecolor=C["bg"])
     plt.close(fig)
     print("Saved", output_path)
 

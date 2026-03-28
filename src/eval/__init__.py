@@ -16,6 +16,8 @@ from src.eval.run import (
     run_structural_ood,
     run_model_mismatch_extended,
     run_failure_penalty_sweep,
+    run_action_drop_sweep,
+    run_cost_passive_heatmap,
 )
 from src.eval.plots import (
     load_metrics,
@@ -82,4 +84,6 @@ __all__ = [
     "run_structural_ood",
     "run_model_mismatch_extended",
     "run_failure_penalty_sweep",
+    "run_action_drop_sweep",
+    "run_cost_passive_heatmap",
 ]
