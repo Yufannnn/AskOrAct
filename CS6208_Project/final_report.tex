@@ -269,9 +269,9 @@ the expected obstacle-aware shortest-path distance (via A*) to each candidate go
 where asking incurs both one timestep of delay (cost $1$) and an additional penalty $c_q = 0.5$ for the principal's effort, and the expectation integrates over answers $\alpha$ after updating to $b_{t,q,\alpha}$.
 This one-step myopic lookahead does not plan over multi-step ask sequences.
 
-\textbf{Normative core.}
+\textbf{Decision rule.}
 The policy selects $\arg\min_q \text{CostAsk}(q)$ when $\min_q \text{CostAsk}(q) < \text{CostAct}$, and acts otherwise.
-This Bayes-risk comparison constitutes the principled core of the decision rule.
+Because the surrogate cost $C$ does not penalise wrong picks, this comparison minimises effort under the current posterior but does not account for failure risk (see the failure-penalty analysis in \S\ref{sec:results}).
 
 \textbf{Heuristic guards.}
 Three heuristic constraints are imposed on top of the Bayes-risk core for engineering robustness (not part of the decision-theoretic derivation).
@@ -365,6 +365,7 @@ Full per-$(K,\varepsilon,\beta)$ breakdowns appear in Appendix~B.
 Figure~\ref{fig:main} shows results averaged across all $\varepsilon$ and $\beta$ conditions.
 At $K{=}1$ (no ambiguity) all policies perform identically: 100\% success, zero questions.
 As ambiguity rises to $K{\geq}3$, a clear empirical success--question-cost frontier emerges and policies diverge.
+(Note: template feasibility changes with $K$---e.g.\ $T1$ is used only at $K{=}1$---so the reported ``effect of ambiguity'' reflects the full benchmark regime, not a pure $K$ manipulation.)
 
 Table~\ref{tab:main} summarises the key aggregate results; full per-$(K,\varepsilon,\beta)$ results appear in Appendix~B.
 
@@ -416,35 +417,33 @@ Figure~\ref{fig:pareto} shows the success--regret Pareto frontier at $K{=}4$.
 \subsection{Robustness}
 
 \textbf{Answer noise.}
-Sweeping answer noise from 0 to 0.2, the AskOrAct advantage holds at $K{=}4$ ($+4$--$+9$\,pp).
-At $K{=}3$ a brief reversal at noise$\,{=}\,0.1$ suggests a regime where noisy answers mislead the posterior.
+An independently-sampled sanity check sweeps answer noise from 0 to 0.2 (episodes are not seed-matched across noise levels).
+At $K{=}4$ the AskOrAct advantage remains positive ($+4$--$+9$\,pp); at $K{=}3$ the signal is noisier and no firm conclusion is drawn.
 
 \textbf{$\beta$-mismatch.}
 With $\hat\beta{=}2$ fixed and true $\beta{\in}\{1,2,4\}$, the hardest case ($\beta{=}1$, near-random principal) still yields $+13.5$\,pp for AskOrAct over NeverAsk.
-
-\textbf{Held-out instruction templates.}
-Evaluating on templates not seen during policy design shows mild degradation but preserves policy ordering, confirming results are not template-specific.
 
 \textbf{Scale-$K$.}
 Extending to $K \in \{5, 6\}$ shows the asking advantage grows: \textit{AskOrAct} retains meaningful success while \textit{NeverAsk} falls substantially, consistent with VoI being most valuable under high ambiguity.
 
 \textbf{Generalization across layout, prior, and noise.}
 Table~\ref{tab:generalization} shows results under variations at $K{=}4$.
-A horizontal wall, distance-weighted prior, and doubled object-noise all preserve the AskOrAct--NeverAsk gap.
+Under a horizontal wall, distance-weighted prior, and doubled object-noise, the AskOrAct--NeverAsk gap remains positive in these runs ($+2$--$+8$\,pp), though some deltas are small relative to sampling noise.
 
 \textbf{Structural OOD.}
 Table~\ref{tab:structural_ood} varies the grid size ($N{\in}\{7,9,11\}$) and removes the internal wall (single room), producing environments structurally unlike the default $9{\times}9$ two-room grid.
-The AskOrAct advantage over NeverAsk is preserved across all six conditions: $+2$--$+6$\,pp on two-room grids and $+4$--$+5$\,pp on single-room grids.
+The AskOrAct advantage over NeverAsk remains positive in all six conditions ($+2$--$+6$\,pp), though the smallest deltas (e.g.\ $+2$ at $N{=}7$ two-room) may not survive stricter statistical tests.
 
 \textbf{Model mismatch (extended).}
 Beyond $\beta$-mismatch (above), we test noise-model and prior-family mismatch at $K{=}4$.
-When the agent assumes flat noise $\eta{=}0.10$ while true noise is per-question-type, AskOrAct success is unchanged ($89\%$ vs.\ matched $88\%$); even assuming zero noise ($\eta{=}0$) only drops SR to $86\%$ ($-2$\,pp), while the $\Delta$ over NeverAsk remains positive at $+3$--$+6$\,pp across all conditions.
+When the agent assumes flat noise $\eta{=}0.10$ while true noise is per-question-type, AskOrAct success is similar ($89\%$ vs.\ matched $88\%$); assuming zero noise ($\eta{=}0$) drops SR to $86\%$ ($-2$\,pp). The $\Delta$ over NeverAsk remains positive ($+3$--$+6$\,pp) in these runs, though the small sample (100 episodes/cell) limits the precision of these comparisons.
 Using a distance-weighted prior on uniformly-placed goals, SR \emph{increases} to $96\%$ ($+8$\,pp), showing AskOrAct tolerates and benefits from informative prior mismatch.
 
-\textbf{Failure penalty sweep.}
+\textbf{Failure penalty sweep (negative result).}
 Table~\ref{tab:failure_penalty} introduces a wrong-pick penalty $c_\text{fail}$ into the expected cost, so $\text{CostAct}$ includes $c_\text{fail}\!\cdot\!(1{-}p_\text{MAP})$.
 At $K{=}4$, AskOrAct's question rate doubles from 0.56 to 1.33 when $c_\text{fail}$ rises from 0 to 5, confirming the ask gate is sensitive to failure cost.
-The penalised cost $C_p = C + c_\text{fail}\!\cdot\!\mathbf{1}[\text{fail}]$ is reported alongside NeverAsk.
+However, the penalised cost $C_p = C + c_\text{fail}\!\cdot\!\mathbf{1}[\text{fail}]$ is \emph{higher} for AskOrAct than NeverAsk at every $c_\text{fail}{>}0$: the extra questions add steps without sufficiently improving success.
+This is a limitation of the myopic surrogate objective, which does not natively price failure.
 
 \begin{table}[h]
 \centering
@@ -550,13 +549,15 @@ The question bank is fixed (three types); extending to open-ended questions requ
 The gridworld is small enough for exact posteriors; scaling needs particle-filter or amortised inference.
 The principal is Boltzmann; real principals may be non-stationary.
 The structural OOD and model-mismatch experiments (Tables~\ref{tab:structural_ood}--\ref{tab:failure_penalty}) show the ask-gate transfers across grid sizes, room counts, and misspecified noise/prior, though the quantitative thresholds remain benchmark-specific.
+The failure-penalty sweep (Table~\ref{tab:failure_penalty}) reveals that the myopic surrogate does not improve penalised cost over NeverAsk; a failure-aware objective is needed to close this gap.
 Future work could investigate adaptive $c_q$, non-factual answer spaces, and richer environment structure.
 
 \section{Conclusion}
 
 We presented a controlled benchmark for ask-or-act decisions under instruction ambiguity.
 Using a reproducible gridworld, selective clarification yields $+7.9$--$+8.4$\,pp over a non-asking baseline at $K{=}3$--$4$ while asking $<1$ question per episode.
-The ask-gate transfers across grid sizes, room structures, misspecified noise/prior models, and failure-penalty regimes (Tables~\ref{tab:structural_ood}--\ref{tab:failure_penalty}), and the failure penalty sweep confirms the gate is sensitive to the cost of wrong picks.
+The ask-gate advantage remains positive across grid sizes, room structures, and misspecified noise/prior models (Tables~\ref{tab:generalization}--\ref{tab:structural_ood}).
+The failure-penalty sweep shows the gate is sensitive to wrong-pick cost, but does not improve penalised cost over NeverAsk under the current myopic surrogate---a limitation that motivates failure-aware objectives.
 The question cost hyperparameter is the most influential factor for selective behaviour.
 \textit{Scope note:} these findings characterise behaviour in a controlled gridworld under a Boltzmann principal; generalization to richer environments and real human principals is an open question.
 
@@ -614,7 +615,7 @@ Entries at $K{=}1$ are omitted (all policies achieve 100\% success, 0 questions)
 \caption{Per-$(K, \varepsilon)$ results for the five core policies, averaged over $\beta$.
 $K{=}1$ omitted (trivial: all 100\%).}
 \label{tab:full_results}
-\small
+\scriptsize
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{ll rr rr rr rr rr}
 \toprule
@@ -640,20 +641,18 @@ $K$ & $\varepsilon$ & Succ & Q/ep & Succ & Q/ep & Succ & Q/ep & Succ & Q/ep & Su
 \section{Hyperparameter Sensitivity}
 \label{app:hyperparams}
 
-The three key \textit{AskOrAct} hyperparameters are the question cost $c_q$, the entropy gate $\tau_H$, and the ask window.
-Their roles and approximate sensitivities are as follows.
+The following are informal pilot observations (no dedicated sweep table is provided).
 
 \textbf{Question cost $c_q$.}
 The ablation (Table~\ref{tab:ablations}) confirms this is the primary driver: $c_q{=}0$ leads to over-asking and performance collapse.
-For $c_q \in [0.3, 1.0]$, the policy behaviour is qualitatively similar: selectivity increases with $c_q$ but success is non-monotone, with an optimum around $c_q{=}0.5$.
+Informal tests suggest behaviour is qualitatively similar for $c_q \in [0.3, 1.0]$.
 
 \textbf{Entropy gate $\tau_H$.}
-When $H(b_t) \leq \tau_H$, the posterior is concentrated enough that asking yields negligible information gain.
-For $\tau_H \in [0.2, 0.5]$, the policy is largely insensitive because the explicit IG comparison in CostAsk already discourages low-value questions; the entropy gate provides a fast early-exit.
+For $\tau_H \in [0.2, 0.5]$, the policy appears largely insensitive because the CostAsk comparison already discourages low-value questions; the gate provides a fast early-exit.
 
 \textbf{Ask window.}
-Restricting asking to the first 6 steps prevents late questions that cannot pay off before the step budget is exhausted.
-Extending the window to 10 shows diminishing returns at $K{=}3,4$ because the posterior has usually converged by step 6 via action observations.
+Restricting asking to the first 6 steps prevents late questions that cannot pay off before the deadline.
+Informally, extending to 10 steps shows diminishing returns at $K{=}3,4$.
 
 \section{Episode Generation and Instruction Templates}
 \label{app:episode_gen}
@@ -696,10 +695,6 @@ T3 & ``get \{color\} object'' & color only \\
 The prior is uniform over candidates: $b_0(g) = 1/K$ for each candidate, $0$ for distractors.
 Three question types are available (color, type, room).
 Answers follow a noisy channel: $P(\alpha \mid q, g) = (1{-}\eta)\,\mathbf{1}[\alpha {=} \mathrm{true}(g,q)] + \eta/(|\mathcal{A}_q|{-}1)\,\mathbf{1}[\alpha {\neq} \mathrm{true}(g,q)]$, with $\eta{=}0.05$ (color), $0.10$ (room), $0.20$ (type).
-
-\textbf{Held-out templates.}
-In the held-out evaluation, the episode generator is restricted to $\{T0, T3\}$ (type-only and color-only templates) rather than the full set $\{T0, T1, T2, T3\}$ used during main evaluation.
-These templates were not seen during policy design; the policy is evaluated without modification.
 
 \section{Policy Pseudocode}
 \label{app:pseudocode}
