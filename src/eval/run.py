@@ -258,8 +258,8 @@ def _run_episode_impl(policy_name, seed, config_dict):
             "answer_noise": answer_noise,
             "question_cost": question_cost,
             "max_questions": policy_max_questions,
-            "entropy_threshold": config.ENTROPY_THRESHOLD,
-            "entropy_gate": config.ENTROPY_GATE,
+            "entropy_threshold": config_dict.get("entropy_threshold_override", config.ENTROPY_THRESHOLD),
+            "entropy_gate": config_dict.get("entropy_gate_override", config.ENTROPY_GATE),
             "ask_window": config_dict.get("ask_window_override", config.ASK_WINDOW),
             "ig_threshold": config.IG_THRESHOLD,
             "infogain_use_entropy_gate": config.INFOGAIN_USE_ENTROPY_GATE,
@@ -1844,4 +1844,132 @@ def run_observation_hurts_mismatch(output_csv="results/metrics_obs_hurts_mismatc
         w.writeheader()
         w.writerows(rows)
     print("Obs hurts mismatch:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Fix: Template-stratified main comparison (T3 only)
+# ---------------------------------------------------------------------------
+
+def run_within_template_t3(output_csv="results/metrics_within_template_t3.csv"):
+    """Main comparison restricted to T3 (color-only) across K={2,3,4}."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [2, 3, 4]
+    policies = list(getattr(config, "MAIN_SWEEP_BASE_POLICIES", config.POLICIES))
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for K in ks:
+        for policy in policies:
+            for rep_seed in reps:
+                for eid in range(n_ep):
+                    seed = _sweep_env_seed(config.BASE_SEED + 2600000, rep_seed, K, eps, beta, eid)
+                    cfg = {"ambiguity_K": K, "eps": eps, "beta": beta,
+                           "allowed_template_ids": [3]}
+                    m = _run_episode_impl(policy, seed, cfg)
+                    rows.append({
+                        "policy": policy, "K": K,
+                        "rep_seed": int(rep_seed), "episode_id": int(eid),
+                        "success": m["success"], "steps": m["steps"],
+                        "questions_asked": m["questions_asked"],
+                        "team_cost": m["team_cost"],
+                    })
+    fieldnames = ["policy", "K", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Within-template T3:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Fix: Matched entropy-gate comparison
+# ---------------------------------------------------------------------------
+
+def run_matched_gate(output_csv="results/metrics_matched_gate.csv"):
+    """All policies with identical entropy gate tau_H=0.3."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    policies = list(getattr(config, "MAIN_SWEEP_BASE_POLICIES", config.POLICIES))
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+    gate = 0.3  # matched for all
+
+    rows = []
+    for K in ks:
+        for policy in policies:
+            for rep_seed in reps:
+                for eid in range(n_ep):
+                    seed = _sweep_env_seed(config.BASE_SEED + 2700000, rep_seed, K, eps, beta, eid)
+                    cfg = {"ambiguity_K": K, "eps": eps, "beta": beta,
+                           "entropy_gate_override": gate,
+                           "entropy_threshold_override": gate}
+                    m = _run_episode_impl(policy, seed, cfg)
+                    rows.append({
+                        "policy": policy, "K": K,
+                        "rep_seed": int(rep_seed), "episode_id": int(eid),
+                        "success": m["success"], "steps": m["steps"],
+                        "questions_asked": m["questions_asked"],
+                    })
+    fieldnames = ["policy", "K", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Matched gate:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Fix: Clean Shapley coalitions (same policy, ablate channels)
+# ---------------------------------------------------------------------------
+
+def run_shapley_clean(output_csv="results/metrics_shapley_clean.csv"):
+    """Shapley coalitions: AskOrAct with channel ablations."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    # Coalitions: (label, action_drop_rate, max_questions_per_episode)
+    coalitions = [
+        ("both",         0.0, None),  # both channels
+        ("passive_only", 0.0, 0),     # passive only (can't ask)
+        ("active_only",  1.0, None),  # active only (can't observe)
+        ("neither",      1.0, 0),     # neither channel
+    ]
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for K in ks:
+        for label, p_drop, max_q in coalitions:
+            for rep_seed in reps:
+                for eid in range(n_ep):
+                    seed = _sweep_env_seed(config.BASE_SEED + 2800000, rep_seed, K, eps, beta, eid)
+                    cfg = {"ambiguity_K": K, "eps": eps, "beta": beta,
+                           "action_drop_rate": p_drop}
+                    if max_q is not None:
+                        cfg["max_questions_per_episode"] = max_q
+                    m = _run_episode_impl("ask_or_act", seed, cfg)
+                    rows.append({
+                        "coalition": label, "K": K,
+                        "rep_seed": int(rep_seed), "episode_id": int(eid),
+                        "success": m["success"], "steps": m["steps"],
+                        "questions_asked": m["questions_asked"],
+                    })
+    fieldnames = ["coalition", "K", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Shapley clean:", output_csv, f"({len(rows)} rows)")
     return rows

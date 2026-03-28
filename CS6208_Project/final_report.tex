@@ -60,8 +60,8 @@
 \centerline{\parbox{0.92\textwidth}{\small
 \textbf{Abstract.}\enspace
 In cooperative assistance an agent receives goal evidence through two channels: passive inference from observed actions and active clarification via costly questions.
-Using a controlled gridworld benchmark we show that these channels are \emph{strongly redundant} when passive inference is reliable, but redundancy weakens as passive quality degrades---making clarification valuable primarily as robustness insurance.
-A Shapley-style decomposition reveals an interaction term of $-38$\,pp at $K{=}3$ (strong redundancy) that shrinks to $-17$\,pp when 60\% of actions are unobserved.
+In a controlled gridworld benchmark, we find that these channels are \emph{strongly redundant} when passive inference is reliable, but redundancy weakens as passive quality degrades---making clarification valuable primarily as robustness insurance in this setting.
+A Shapley-style decomposition (channel ablations of a single policy) reveals an interaction of $-26 \pm 3$\,pp at $K{=}3$: in this benchmark, the channels provide overlapping rather than unique information.
 We further show that assistability is non-monotonic in principal rationality: a \emph{more} rational principal can be harder to assist because action aliasing hides intent.
 Under model mismatch, additional observation actively poisons the posterior ($-2.2$\,pp/step vs.\ $-0.8$ matched).
 A surprise-tempered posterior update mitigates this: it preserves matched performance while gaining $+1$--$+5$\,pp under mismatch, suggesting that posterior quality is at least as important as the ask-or-act policy under misspecification.
@@ -111,7 +111,7 @@ The gap is the ability to study how passive and active evidence \emph{interact}-
 
 \textbf{Three Takeaways.}
 \begin{enumerate}
-  \item \textbf{Passive and active channels are strongly redundant, not additive.} A Shapley-style decomposition shows an interaction of $-38$\,pp at $K{=}3$. Redundancy weakens as passive quality degrades ($-38 \to -17$\,pp), so clarification is most valuable as robustness insurance.
+  \item \textbf{Passive and active channels are strongly redundant, not additive.} A Shapley-style decomposition (channel ablations of a single policy) shows an interaction of $-26$\,pp at $K{=}3$, confirming overlapping information. Clarification is most valuable as robustness insurance.
   \item \textbf{Assistability is non-monotonic in principal rationality.} At $K{=}3$, NeverAsk success peaks at intermediate $\beta$ and drops at high $\beta$: extreme rationality collapses action diversity and hides intent.
   \item \textbf{Under model mismatch, more observation actively poisons the posterior.} Forced observation costs $-2.2$\,pp/step under mismatch vs.\ $-0.8$ matched ($2.8\times$ worse), explaining why passive-aware heuristics cannot outperform the simple cost-comparing baseline.
 \end{enumerate}
@@ -276,7 +276,7 @@ Three prior attempts to improve the decision layer all failed (Section~\ref{sec:
 
 \subsection{Baselines}
 
-Let $\mathcal{Q}$ denote the question bank, $Q_{\max}{=}3$ the per-episode ask budget, $\tau_H$ the entropy gate threshold ($0.3$ for AskOrAct, $0.5$ for baselines), and $\tau_{\mathrm{IG}}{=}0.01$ the information-gain threshold.
+Let $\mathcal{Q}$ denote the question bank, $Q_{\max}{=}3$ the per-episode ask budget, $\tau_H$ the entropy gate ($0.3$ for AskOrAct, $0.5$ for baselines; a matched-gate check with $\tau_H{=}0.3$ for all policies preserves the ordering), and $\tau_{\mathrm{IG}}{=}0.01$ the information-gain threshold.
 Define the information gain of question $q$ under belief $b_t$ as:
 \[
   \mathrm{IG}(q, b_t) = H(b_t) - \sum_{\alpha} P(\alpha \mid q, b_t)\, H(b_{t,q,\alpha}),
@@ -358,8 +358,30 @@ At $K{=}1$ (no ambiguity) all policies perform identically: 100\% success, zero 
 As ambiguity rises to $K{\geq}3$, policies diverge.
 
 \textbf{Caveat: K is not a pure manipulation.}
-Template feasibility changes with $K$ (e.g.\ $T1$ is used only at $K{=}1$; room template $T2$ is excluded at $K{\geq}2$), so the main sweep reflects the full benchmark regime, not a controlled ambiguity-only comparison.
-A within-template control using only T3 (color-only, 100 episodes/cell) across $K{\in}\{2,3,4\}$ shows AskOrAct--NeverAsk deltas of $0$, $+11$, and $+1$\,pp, confirming the advantage emerges around $K{=}3$ even within a single template family.
+Template feasibility changes with $K$ (e.g.\ $T1$ is used only at $K{=}1$; $T2$ is excluded at $K{\geq}2$).
+Table~\ref{tab:t3} isolates the ambiguity effect by restricting to T3 (color-only) across $K{\in}\{2,3,4\}$ (500 episodes/cell).
+AskOrAct--NeverAsk deltas are $-2$, $+3$, and $+7$\,pp, confirming the advantage grows with $K$ within a single template family.
+
+\begin{table}[h]
+\centering
+\caption{Within-template T3 (color-only). Isolates the effect of $K$.}
+\label{tab:t3}
+\scriptsize
+\begin{tabular}{llrr}
+\toprule
+$K$ & Policy & Success & Q/ep \\
+\midrule
+2 & AskOrAct & 95\% & 0.61 \\
+  & NeverAsk & 97\% & 0.00 \\
+\midrule
+3 & AskOrAct & 90\% & 0.67 \\
+  & NeverAsk & 87\% & 0.00 \\
+\midrule
+4 & AskOrAct & 92\% & 0.61 \\
+  & NeverAsk & 85\% & 0.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 Table~\ref{tab:main} summarises the key aggregate results; full per-$(K,\varepsilon,\beta)$ results appear in Appendix~B.
 
@@ -513,9 +535,8 @@ InfoGainAsk maintains a fixed ${\sim}1.5$ Q/ep regardless of $p_\text{drop}$, co
 \end{figure}
 
 \textbf{Channel interaction: redundancy, not complementarity.}
-Figure~\ref{fig:synergy} shows a Shapley-style interaction term $I = V(\text{both}) - V(\text{passive}) - V(\text{active}) + V(\text{neither})$, where $V$ is success rate and $V(\text{neither}) = 1/K$.
-At $p_\text{drop}{=}0$ (full passive channel), $I = -38$\,pp ($K{=}3$) and $-31$\,pp ($K{=}4$): the channels are \emph{strongly redundant}---they provide overlapping, not unique, information.
-As passive quality degrades, redundancy weakens: at $p_\text{drop}{=}0.8$, $I$ shrinks to $-19$\,pp ($K{=}4$).
+We define four coalitions using AskOrAct with channel ablations: \emph{both} (default), \emph{passive-only} ($Q_\text{max}{=}0$), \emph{active-only} ($p_\text{drop}{=}1$), and \emph{neither} ($Q_\text{max}{=}0$, $p_\text{drop}{=}1$).
+The interaction $I = V(\text{both}) - V(\text{passive}) - V(\text{active}) + V(\text{neither})$ is $-26 \pm 3.3$\,pp at $K{=}3$ and $-20 \pm 3.2$\,pp at $K{=}4$ (mean $\pm$ 1\,s.e.\ over 5 seeds): the channels are \emph{strongly redundant} in this benchmark.
 This reveals that clarification is valuable primarily as robustness insurance against brittle passive inference, not as additive information.
 
 \begin{figure}[t]
@@ -564,9 +585,12 @@ At $K{=}1,2$, \textit{AskOrAct} rarely asks (entropy already low).
 \section{Discussion}
 
 \textbf{Redundancy, not complementarity.}
-The Shapley decomposition (Figure~\ref{fig:synergy}) shows that passive and active channels provide \emph{overlapping} information when both are reliable ($I{=}-38$\,pp at $K{=}3$).
-Clarification does not add new bits so much as it insures against passive failure: the $+22.6$\,pp gap at $K{=}3$ in the aliased regime confirms that asking matters most when passive inference is structurally unable to resolve ambiguity.
-This interaction is invisible in single-channel benchmarks~\cite{kobalczyk2025active,grand2026shoot}.
+The clean Shapley decomposition ($I{=}-26$\,pp at $K{=}3$) confirms overlapping information between channels.
+Asking matters most when passive inference is structurally unable to resolve ambiguity ($+22.6$\,pp in the aliased regime).
+
+\textbf{Surrogate vs.\ failure-aware cost.}
+AskOrAct optimises surrogate cost $C$ (ignoring wrong picks), yet when we post-hoc compute $C_f = C + c_\text{fail} \cdot \mathbf{1}[\text{fail}]$, AskOrAct achieves lower $C_f$ than NeverAsk for $c_\text{fail} \geq 10$ (e.g.\ $9.4$ vs.\ $10.2$ at $K{=}3$, $c_\text{fail}{=}10$).
+The surrogate is thus a reasonable proxy for moderate failure penalties, though InfoGainAsk achieves even lower $C_f$ at higher question cost.
 
 \textbf{The $\beta$ inverted-U and its mechanism.}
 The non-monotonic assistability finding (Figure~\ref{fig:beta_u}) follows from a proposition about first-action informativeness:
@@ -602,7 +626,7 @@ Future work could investigate failure-aware objectives (the myopic surrogate doe
 \section{Conclusion}
 
 We presented a controlled benchmark for ask-or-act decisions with both a diagnostic and a constructive contribution.
-\textit{Diagnostic:} passive and active evidence are strongly redundant ($I{=}-38$\,pp); assistability is non-monotonic in principal rationality; and under mismatch, observation actively poisons the posterior ($-2.2$\,pp/step).
+\textit{Diagnostic:} passive and active evidence are strongly redundant ($I{=}-26$\,pp); assistability is non-monotonic in principal rationality; and under mismatch, observation actively poisons the posterior ($-2.2$\,pp/step).
 \textit{Constructive:} surprise-tempered posterior updates (AskOrAct-ST) mitigate mismatch with no harm when matched and $+1$--$+5$\,pp gains under mismatch, after three decision-layer interventions all failed.
 This suggests posterior quality is at least as important as the ask-or-act policy under misspecification.
 \textit{Scope note:} these findings characterise behaviour in a controlled gridworld under a Boltzmann principal; generalization to richer environments and real human principals is an open question.
