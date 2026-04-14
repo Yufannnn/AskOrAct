@@ -451,7 +451,7 @@ def run_episode(policy_name, seed, config_dict):
     return _run_episode_impl(policy_name, seed, config_dict)
 
 
-def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.json"):
+def run_sweep(output_csv="results/metrics/metrics.csv", output_json="results/metrics/summary.json"):
     """Sweep over the paper's main evaluation grid and write CSV/JSON summaries."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     rows = []
@@ -630,7 +630,7 @@ def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.jso
     return rows, summary
 
 
-def run_ablations(output_csv="results/metrics_ablations.csv"):
+def run_ablations(output_csv="results/metrics/metrics_ablations.csv"):
     """Run fixed ablation grid and write a single metrics CSV."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
 
@@ -740,7 +740,7 @@ def run_ablations(output_csv="results/metrics_ablations.csv"):
     return rows
 
 
-def run_robust_answer_noise(output_csv="results/metrics_robust_answer_noise.csv"):
+def run_robust_answer_noise(output_csv="results/metrics/metrics_robust_answer_noise.csv"):
     """
     Robustness sweep A: vary answer noise at fixed principal/assistant dynamics.
     Focused on K={3,4} for runtime.
@@ -840,7 +840,7 @@ def run_robust_answer_noise(output_csv="results/metrics_robust_answer_noise.csv"
     return rows
 
 
-def run_robust_mismatch(output_csv="results/metrics_robust_mismatch.csv"):
+def run_robust_mismatch(output_csv="results/metrics/metrics_robust_mismatch.csv"):
     """
     Robustness sweep B: model mismatch by varying principal beta while assistant beta is fixed.
     Focused on K={3,4} for runtime.
@@ -932,7 +932,7 @@ def run_robust_mismatch(output_csv="results/metrics_robust_mismatch.csv"):
     return rows
 
 
-def run_question_difficulty_sweep(output_csv="results/metrics_question_difficulty.csv"):
+def run_question_difficulty_sweep(output_csv="results/metrics/metrics_question_difficulty.csv"):
     """
     Focused sweep for question-difficulty effects under mixed question types.
     Fixed K={3,4}, comparing:
@@ -1035,7 +1035,7 @@ def _template_split_ids(holdout_ratio=0.30):
     return train_like_ids, holdout_ids
 
 
-def run_generalization_templates(output_csv="results/metrics_generalization_templates.csv"):
+def run_generalization_templates(output_csv="results/metrics/metrics_generalization_templates.csv"):
     """
     Held-out instruction-template evaluation.
     No training is performed; this probes brittleness under unseen templates.
@@ -1141,7 +1141,7 @@ def run_generalization_templates(output_csv="results/metrics_generalization_temp
     return rows
 
 
-def run_scale_k(output_csv="results/metrics_scaleK.csv"):
+def run_scale_k(output_csv="results/metrics/metrics_scaleK.csv"):
     """
     Scale ambiguity K up to 6 at fixed dynamics to keep runtime bounded.
     """
@@ -1242,7 +1242,7 @@ def run_scale_k(output_csv="results/metrics_scaleK.csv"):
 # Generalization experiment: layout type (vertical vs horizontal wall)
 # ---------------------------------------------------------------------------
 
-def run_generalization_layout(output_csv="results/metrics_generalization_layout.csv"):
+def run_generalization_layout(output_csv="results/metrics/metrics_generalization_layout.csv"):
     """Sweep layout type (vertical/horizontal wall) at K={3,4}."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     ks = [3, 4]
@@ -1285,7 +1285,7 @@ def run_generalization_layout(output_csv="results/metrics_generalization_layout.
 # Generalization experiment: non-uniform (distance-weighted) prior
 # ---------------------------------------------------------------------------
 
-def run_generalization_prior(output_csv="results/metrics_generalization_prior.csv"):
+def run_generalization_prior(output_csv="results/metrics/metrics_generalization_prior.csv"):
     """Sweep prior type (uniform/distance) at K={3,4}."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     ks = [3, 4]
@@ -1328,7 +1328,7 @@ def run_generalization_prior(output_csv="results/metrics_generalization_prior.cs
 # Generalization experiment: asymmetric answer noise
 # ---------------------------------------------------------------------------
 
-def run_generalization_asymmetric_noise(output_csv="results/metrics_generalization_asymmetric_noise.csv"):
+def run_generalization_asymmetric_noise(output_csv="results/metrics/metrics_generalization_asymmetric_noise.csv"):
     """Sweep answer-noise profile (default symmetric / asymmetric) at K={3,4}."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     ks = [3, 4]
@@ -1380,7 +1380,7 @@ def run_generalization_asymmetric_noise(output_csv="results/metrics_generalizati
 # Structural OOD: different grid size + single room
 # ---------------------------------------------------------------------------
 
-def run_structural_ood(output_csv="results/metrics_structural_ood.csv"):
+def run_structural_ood(output_csv="results/metrics/metrics_structural_ood.csv"):
     """Sweep grid size (7,9,11) x room config (two-room, single) at K={3,4}."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     ks = [3, 4]
@@ -1430,7 +1430,7 @@ def run_structural_ood(output_csv="results/metrics_structural_ood.csv"):
 # Model-mismatch (extended): noise mismatch + prior mismatch
 # ---------------------------------------------------------------------------
 
-def run_model_mismatch_extended(output_csv="results/metrics_model_mismatch_ext.csv"):
+def run_model_mismatch_extended(output_csv="results/metrics/metrics_model_mismatch_ext.csv"):
     """
     Extended model-mismatch: noise mismatch (agent assumes flat noise while true
     noise is per-qtype) and prior mismatch (agent uses distance prior on uniform world).
@@ -1508,7 +1508,7 @@ def run_model_mismatch_extended(output_csv="results/metrics_model_mismatch_ext.c
 # Failure penalty sweep: wrong-pick penalty shifts the ask threshold
 # ---------------------------------------------------------------------------
 
-def run_failure_penalty_sweep(output_csv="results/metrics_failure_penalty.csv"):
+def run_failure_penalty_sweep(output_csv="results/metrics/metrics_failure_penalty.csv"):
     """Sweep wrong-pick penalty c_fail at K={3,4} to show ask-threshold shift."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     ks = [3, 4]
@@ -1556,7 +1556,7 @@ def run_failure_penalty_sweep(output_csv="results/metrics_failure_penalty.csv"):
 # Action-drop sweep: degrade passive channel quality
 # ---------------------------------------------------------------------------
 
-def run_action_drop_sweep(output_csv="results/metrics_action_drop.csv"):
+def run_action_drop_sweep(output_csv="results/metrics/metrics_action_drop.csv"):
     """Sweep action drop rate to measure passive channel degradation effect."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     ks = [3, 4]
@@ -1604,7 +1604,7 @@ def run_action_drop_sweep(output_csv="results/metrics_action_drop.csv"):
 # Cost × Passive-quality heatmap
 # ---------------------------------------------------------------------------
 
-def run_cost_passive_heatmap(output_csv="results/metrics_cost_passive_heatmap.csv"):
+def run_cost_passive_heatmap(output_csv="results/metrics/metrics_cost_passive_heatmap.csv"):
     """2D sweep: question cost × action drop rate at K=4, ask_or_act only."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     K = 4
@@ -1655,7 +1655,7 @@ def run_cost_passive_heatmap(output_csv="results/metrics_cost_passive_heatmap.cs
 # Measure shared optimal first action among candidate goals per episode
 # ---------------------------------------------------------------------------
 
-def run_passive_resolvability(output_csv="results/metrics_passive_resolvability.csv"):
+def run_passive_resolvability(output_csv="results/metrics/metrics_passive_resolvability.csv"):
     """Per-episode: compute path overlap among candidate goals, then correlate with ask behavior."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     from src.agents.assistant import _bfs_next_step
@@ -1716,7 +1716,7 @@ def run_passive_resolvability(output_csv="results/metrics_passive_resolvability.
 # Novelty Experiment B: Informative irrationality (beta inverted-U)
 # ---------------------------------------------------------------------------
 
-def run_informative_irrationality(output_csv="results/metrics_informative_irrationality.csv"):
+def run_informative_irrationality(output_csv="results/metrics/metrics_informative_irrationality.csv"):
     """Fine-grained beta sweep to find inverted-U in assistance quality."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     ks = [3, 4]
@@ -1764,7 +1764,7 @@ def run_informative_irrationality(output_csv="results/metrics_informative_irrati
 # Force h observation steps before allowing ask/act, with mismatched beta
 # ---------------------------------------------------------------------------
 
-def run_observation_hurts_mismatch(output_csv="results/metrics_obs_hurts_mismatch.csv"):
+def run_observation_hurts_mismatch(output_csv="results/metrics/metrics_obs_hurts_mismatch.csv"):
     """Force observation horizon h, then allow normal policy. Matched vs mismatched beta."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     ks = [3, 4]
@@ -1851,7 +1851,7 @@ def run_observation_hurts_mismatch(output_csv="results/metrics_obs_hurts_mismatc
 # Fix: Template-stratified main comparison (T3 only)
 # ---------------------------------------------------------------------------
 
-def run_within_template_t3(output_csv="results/metrics_within_template_t3.csv"):
+def run_within_template_t3(output_csv="results/metrics/metrics_within_template_t3.csv"):
     """Main comparison restricted to T3 (color-only) across K={2,3,4}."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     ks = [2, 3, 4]
@@ -1891,7 +1891,7 @@ def run_within_template_t3(output_csv="results/metrics_within_template_t3.csv"):
 # Fix: Matched entropy-gate comparison
 # ---------------------------------------------------------------------------
 
-def run_matched_gate(output_csv="results/metrics_matched_gate.csv"):
+def run_matched_gate(output_csv="results/metrics/metrics_matched_gate.csv"):
     """All policies with identical entropy gate tau_H=0.3."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     ks = [3, 4]
@@ -1932,7 +1932,7 @@ def run_matched_gate(output_csv="results/metrics_matched_gate.csv"):
 # Fix: Clean Shapley coalitions (same policy, ablate channels)
 # ---------------------------------------------------------------------------
 
-def run_shapley_clean(output_csv="results/metrics_shapley_clean.csv"):
+def run_shapley_clean(output_csv="results/metrics/metrics_shapley_clean.csv"):
     """Shapley coalitions: AskOrAct with channel ablations."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     ks = [3, 4]

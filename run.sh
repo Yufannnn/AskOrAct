@@ -15,14 +15,14 @@ AskOrAct task runner
 Usage:
   ./run.sh setup             (create .venv + install deps)
   ./run.sh quick-demo        (single episode demo with ASCII render)
-  ./run.sh sweep             (main sweep → results/metrics.csv)
-  ./run.sh ablations         (ablation grid → results/metrics_ablations.csv)
+  ./run.sh sweep             (main sweep → results/metrics/metrics.csv)
+  ./run.sh ablations         (ablation grid → results/metrics/metrics_ablations.csv)
   ./run.sh robustness        (answer-noise + mismatch sweeps + delta plots)
   ./run.sh qdifficulty       (question-difficulty sweep + plots)
   ./run.sh generalization    (held-out templates + scale-K stress test)
-  ./run.sh report            (regenerate full_report.md + all dashboards)
-  ./run.sh package           (build results/submission_package.zip)
-  ./run.sh all               (sweep + ablations + robustness + report + package)
+  ./run.sh report            (regenerate results/reports/full_report.md + dashboards)
+  ./run.sh test              (run regression tests)
+  ./run.sh all               (sweep + ablations + robustness + report)
 EOF
 }
 
@@ -74,66 +74,34 @@ setup() {
   echo "Done."
 }
 
-quick_demo() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/quick_demo.py
-}
-
-sweep() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/run_sweep.py
-}
-
-ablations() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/run_ablations.py
-}
-
-robustness() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/run_robustness.py
-}
-
-qdifficulty() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/run_question_difficulty.py
-}
-
-generalization() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/run_generalization.py
-}
-
-report() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/generate_report.py
-}
-
-package() {
-  ensure_venv
-  "$PYTHON_VENV" scripts/package_submission.py
-}
+quick_demo()     { ensure_venv; "$PYTHON_VENV" scripts/demos/quick_demo.py; }
+sweep()          { ensure_venv; "$PYTHON_VENV" scripts/sweeps/run_sweep.py; }
+ablations()      { ensure_venv; "$PYTHON_VENV" scripts/sweeps/run_ablations.py; }
+robustness()     { ensure_venv; "$PYTHON_VENV" scripts/sweeps/run_robustness.py; }
+qdifficulty()    { ensure_venv; "$PYTHON_VENV" scripts/sweeps/run_question_difficulty.py; }
+generalization() { ensure_venv; "$PYTHON_VENV" scripts/sweeps/run_generalization.py; }
+report()         { ensure_venv; "$PYTHON_VENV" scripts/reporting/generate_report.py; }
+tests()          { ensure_venv; "$PYTHON_VENV" -m unittest discover -s tests -v; }
 
 all() {
   sweep
   ablations
   robustness
   report
-  package
 }
 
 case "$cmd" in
   help|-h|--help) print_help ;;
-  setup) setup ;;
-  quick-demo) quick_demo ;;
-  sweep) sweep ;;
-  ablations) ablations ;;
-  robustness) robustness ;;
-  qdifficulty) qdifficulty ;;
+  setup)          setup ;;
+  quick-demo)     quick_demo ;;
+  sweep)          sweep ;;
+  ablations)      ablations ;;
+  robustness)     robustness ;;
+  qdifficulty)    qdifficulty ;;
   generalization) generalization ;;
-  report) report ;;
-  package) package ;;
-  all) all ;;
+  report)         report ;;
+  test)           tests ;;
+  all)            all ;;
   *)
     echo "Unknown command: $cmd"
     echo

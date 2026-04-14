@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_generate_report_module():
-    script_path = ROOT / "scripts" / "generate_report.py"
+    script_path = ROOT / "scripts" / "reporting" / "generate_report.py"
     spec = importlib.util.spec_from_file_location("askoract_generate_report", script_path)
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -63,12 +63,13 @@ class PlannerCostTests(unittest.TestCase):
 class ReportRegressionTests(unittest.TestCase):
     def test_report_does_not_backfill_main_sweep_contrasts_from_scalek(self):
         module = _load_generate_report_module()
-        module.CSV_PATH = str(ROOT / "results" / "metrics.csv")
-        module.ABLATION_CSV_PATH = str(ROOT / "results" / "metrics_ablations.csv")
-        module.ROBUST_ANSWER_CSV_PATH = str(ROOT / "results" / "metrics_robust_answer_noise.csv")
-        module.ROBUST_MISMATCH_CSV_PATH = str(ROOT / "results" / "metrics_robust_mismatch.csv")
-        module.GENERALIZATION_TEMPLATES_CSV_PATH = str(ROOT / "results" / "metrics_generalization_templates.csv")
-        module.SCALEK_CSV_PATH = str(ROOT / "results" / "metrics_scaleK.csv")
+        metrics_dir = ROOT / "results" / "metrics"
+        module.CSV_PATH = str(metrics_dir / "metrics.csv")
+        module.ABLATION_CSV_PATH = str(metrics_dir / "metrics_ablations.csv")
+        module.ROBUST_ANSWER_CSV_PATH = str(metrics_dir / "metrics_robust_answer_noise.csv")
+        module.ROBUST_MISMATCH_CSV_PATH = str(metrics_dir / "metrics_robust_mismatch.csv")
+        module.GENERALIZATION_TEMPLATES_CSV_PATH = str(metrics_dir / "metrics_generalization_templates.csv")
+        module.SCALEK_CSV_PATH = str(metrics_dir / "metrics_scaleK.csv")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             module.REPORT_MD = str(Path(tmpdir) / "full_report.md")

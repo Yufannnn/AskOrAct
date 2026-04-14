@@ -35,7 +35,7 @@ def bootstrap_mean_ci(values, n_boot=1000, rng_seed=0):
     return mean, float(lo), float(hi)
 
 
-def load_metrics(csv_path="results/metrics.csv"):
+def load_metrics(csv_path="results/metrics/metrics.csv"):
     if not os.path.isfile(csv_path):
         return []
     rows = []
@@ -85,7 +85,7 @@ def load_metrics(csv_path="results/metrics.csv"):
     return rows
 
 
-def load_ablation_metrics(csv_path="results/metrics_ablations.csv"):
+def load_ablation_metrics(csv_path="results/metrics/metrics_ablations.csv"):
     if not os.path.isfile(csv_path):
         return []
     rows = []
@@ -204,8 +204,8 @@ def _paired_delta_by_key(rows, cond_key_fn, metric_fn, policy_a, policy_b):
 
 
 def plot_robust_answer_noise_deltas(
-    csv_path="results/metrics_robust_answer_noise.csv",
-    output_path="results/robust_answer_noise_deltas.png",
+    csv_path="results/metrics/metrics_robust_answer_noise.csv",
+    output_path="results/figures/exploratory/robust_answer_noise_deltas.png",
 ):
     """Plot DeltaSuccess and DeltaRegret vs answer_noise, split by K in {3,4}."""
     if plt is None:
@@ -267,8 +267,8 @@ def plot_robust_answer_noise_deltas(
 
 
 def plot_robust_mismatch_deltas(
-    csv_path="results/metrics_robust_mismatch.csv",
-    output_path="results/robust_mismatch_deltas.png",
+    csv_path="results/metrics/metrics_robust_mismatch.csv",
+    output_path="results/figures/exploratory/robust_mismatch_deltas.png",
 ):
     """Plot DeltaSuccess and DeltaRegret vs principal_beta mismatch, split by K in {3,4}."""
     if plt is None:
@@ -379,7 +379,7 @@ def _plot_metric_vs_k(rows, metric_fn, ylabel, title, output_path, ylim=None):
     print("Saved", output_path)
 
 
-def plot_regret_vs_ambiguity(csv_path="results/metrics.csv", output_path="results/regret_vs_ambiguity.png"):
+def plot_regret_vs_ambiguity(csv_path="results/metrics/metrics.csv", output_path="results/figures/exploratory/regret_vs_ambiguity.png"):
     rows = load_metrics(csv_path)
     if not rows:
         print("No metrics found at", csv_path)
@@ -397,7 +397,7 @@ def plot_regret_vs_ambiguity(csv_path="results/metrics.csv", output_path="result
     )
 
 
-def plot_questions_vs_ambiguity(csv_path="results/metrics.csv", output_path="results/questions_vs_ambiguity.png"):
+def plot_questions_vs_ambiguity(csv_path="results/metrics/metrics.csv", output_path="results/figures/exploratory/questions_vs_ambiguity.png"):
     rows = load_metrics(csv_path)
     if not rows:
         return
@@ -414,7 +414,7 @@ def plot_questions_vs_ambiguity(csv_path="results/metrics.csv", output_path="res
     )
 
 
-def plot_success_rate_vs_ambiguity(csv_path="results/metrics.csv", output_path="results/success_vs_K.png"):
+def plot_success_rate_vs_ambiguity(csv_path="results/metrics/metrics.csv", output_path="results/figures/exploratory/success_vs_K.png"):
     rows = load_metrics(csv_path)
     if not rows:
         return
@@ -432,7 +432,7 @@ def plot_success_rate_vs_ambiguity(csv_path="results/metrics.csv", output_path="
     )
 
 
-def plot_map_rate_vs_ambiguity(csv_path="results/metrics.csv", output_path="results/map_vs_K.png"):
+def plot_map_rate_vs_ambiguity(csv_path="results/metrics/metrics.csv", output_path="results/figures/exploratory/map_vs_K.png"):
     rows = load_metrics(csv_path)
     if not rows:
         return
@@ -461,7 +461,7 @@ def _plot_ablation_metric(rows, metric_key, ylabel, title, output_path, ylim=Non
     )
 
 
-def plot_ablation_figures(csv_path="results/metrics_ablations.csv", output_dir="results"):
+def plot_ablation_figures(csv_path="results/metrics/metrics_ablations.csv", output_dir="results/figures/exploratory"):
     rows = load_ablation_metrics(csv_path)
     if not rows:
         print("No ablation metrics found at", csv_path)
@@ -543,7 +543,7 @@ def _main_collapsed(rows):
     return out
 
 
-def plot_main_dashboard(csv_path="results/metrics.csv", output_path="results/main_dashboard.png"):
+def plot_main_dashboard(csv_path="results/metrics/metrics.csv", output_path="results/figures/paper/main_dashboard.png"):
     """Single 2x2 dashboard for main sweep with 95% bootstrap CIs."""
     if plt is None:
         return
@@ -595,7 +595,7 @@ def plot_main_dashboard(csv_path="results/metrics.csv", output_path="results/mai
     print("Saved", output_path)
 
 
-def plot_ablations_dashboard(csv_path="results/metrics_ablations.csv", output_path="results/ablations_dashboard.png"):
+def plot_ablations_dashboard(csv_path="results/metrics/metrics_ablations.csv", output_path="results/figures/exploratory/ablations_dashboard.png"):
     """
     Single 2x3 dashboard for ablations:
     rows = wrong_pick_fail {False, True}
@@ -656,8 +656,8 @@ def plot_ablations_dashboard(csv_path="results/metrics_ablations.csv", output_pa
 
 
 def plot_clarification_quality_entropy_delta(
-    csv_path="results/metrics.csv",
-    output_path="results/clarification_quality_entropy_delta.png",
+    csv_path="results/metrics/metrics.csv",
+    output_path="results/figures/exploratory/clarification_quality_entropy_delta.png",
 ):
     """
     Plot delta entropy (before first ask - after first ask) for K in {3,4}, by policy.
@@ -717,13 +717,13 @@ def plot_clarification_quality_entropy_delta(
     print("Saved", output_path)
 
 
-def load_question_difficulty_metrics(csv_path="results/metrics_question_difficulty.csv"):
+def load_question_difficulty_metrics(csv_path="results/metrics/metrics_question_difficulty.csv"):
     return _load_robust_metrics(csv_path)
 
 
 def plot_question_difficulty_dashboard(
-    csv_path="results/metrics_question_difficulty.csv",
-    output_path="results/question_difficulty_dashboard.png",
+    csv_path="results/metrics/metrics_question_difficulty.csv",
+    output_path="results/figures/exploratory/question_difficulty_dashboard.png",
 ):
     """
     Focused 2x2 dashboard for question-difficulty experiment on K={3,4}.
@@ -780,8 +780,8 @@ def plot_question_difficulty_dashboard(
 
 
 def plot_question_difficulty_entropy_delta(
-    csv_path="results/metrics_question_difficulty.csv",
-    output_path="results/question_difficulty_entropy_delta.png",
+    csv_path="results/metrics/metrics_question_difficulty.csv",
+    output_path="results/figures/exploratory/question_difficulty_entropy_delta.png",
 ):
     """
     Clarification quality in question-difficulty experiment:
@@ -835,17 +835,17 @@ def plot_question_difficulty_entropy_delta(
     print("Saved", output_path)
 
 
-def load_generalization_templates_metrics(csv_path="results/metrics_generalization_templates.csv"):
+def load_generalization_templates_metrics(csv_path="results/metrics/metrics_generalization_templates.csv"):
     return _load_robust_metrics(csv_path)
 
 
-def load_scale_k_metrics(csv_path="results/metrics_scaleK.csv"):
+def load_scale_k_metrics(csv_path="results/metrics/metrics_scaleK.csv"):
     return _load_robust_metrics(csv_path)
 
 
 def plot_generalization_templates(
-    csv_path="results/metrics_generalization_templates.csv",
-    output_path="results/generalization_templates_plot.png",
+    csv_path="results/metrics/metrics_generalization_templates.csv",
+    output_path="results/figures/exploratory/generalization_templates_plot.png",
 ):
     """
     Held-out template evaluation plot with CIs:
@@ -898,8 +898,8 @@ def plot_generalization_templates(
 
 
 def plot_scale_k(
-    csv_path="results/metrics_scaleK.csv",
-    output_path="results/scaleK_plot.png",
+    csv_path="results/metrics/metrics_scaleK.csv",
+    output_path="results/figures/exploratory/scaleK_plot.png",
 ):
     """
     Scale-K summary plot:
@@ -950,7 +950,7 @@ def plot_scale_k(
     print("Saved", output_path)
 
 
-def plot_setup_overview(output_path="results/setup_overview.png"):
+def plot_setup_overview(output_path="results/figures/paper/setup_overview.png"):
     """Draw a schematic of the cooperative task setup."""
     if plt is None:
         return
@@ -1075,7 +1075,7 @@ def plot_setup_overview(output_path="results/setup_overview.png"):
     print("Saved", output_path)
 
 
-def plot_ask_or_act_pipeline(output_path="results/ask_or_act_pipeline.png"):
+def plot_ask_or_act_pipeline(output_path="results/figures/paper/ask_or_act_pipeline.png"):
     """Draw a polished vertical decision-flow diagram for AskOrAct."""
     if plt is None:
         return
@@ -1287,8 +1287,8 @@ def plot_ask_or_act_pipeline(output_path="results/ask_or_act_pipeline.png"):
 
 
 def plot_pareto_k4(
-    csv_path="results/metrics.csv",
-    output_path="results/pareto_K4.png",
+    csv_path="results/metrics/metrics.csv",
+    output_path="results/figures/exploratory/pareto_K4.png",
 ):
     """
     Pareto-style view at K=4:
