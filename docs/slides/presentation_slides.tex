@@ -42,86 +42,106 @@
 \end{frame}
 
 % =============================================================
-\begin{frame}{Motivation and Setup}
+\begin{frame}{The Setup}
   \begin{columns}[T,onlytextwidth]
-    \column{0.50\textwidth}
+    \column{0.52\textwidth}
       \includegraphics[width=\textwidth]{setup_overview.png}
+    \column{0.46\textwidth}
+      \vspace{0.6em}
+      \begin{block}{Two ways to figure out a goal}
+        \small
+        \textbf{Watch} what the principal does, or\\
+        \textbf{ask} --- at a small cost.
+      \end{block}
       \vspace{0.3em}
-      \begin{itemize}\small
-        \item $9{\times}9$ two-room gridworld, $K$ candidate goals
-        \item Boltzmann principal ($\beta$, $\varepsilon$-noise)
-        \item 6 policies, 19{,}800 episodes, 95\% bootstrap CIs
-      \end{itemize}
-    \column{0.48\textwidth}
+      \begin{block}{Three policies}
+        \small
+        \textbf{NeverAsk} --- watch, infer, then commit.\\
+        \textbf{AlwaysAsk} --- keep asking while unsure.\\
+        \textbf{AskOrAct} --- compare ask cost vs. act cost\\
+        \phantom{\textbf{AskOrAct} --- }and choose the cheaper one.
+      \end{block}
+      \vspace{0.3em}
       \begin{block}{The question}
         \small
-        An assistant can infer the principal's goal by
-        \textbf{passively watching} actions or
-        \textbf{actively asking} at cost $c_q$.\\[0.4em]
-        \emph{How do these two channels interact --- and when does more observation hurt?}
-      \end{block}
-      \vspace{0.3em}
-      \begin{block}{Gap}
-        \small
-        Prior work (CLIPS, ATD, ShootFirst) studies each channel in isolation.
-        To our knowledge this is the \alert{first benchmark combining both}
-        under controlled ambiguity sweeps.
+        \emph{How do these channels interact ---\\
+        and when does more \textbf{watching} actually \textbf{hurt}?}
       \end{block}
   \end{columns}
 \end{frame}
 
 % =============================================================
-\begin{frame}{Finding 1 \& 2 --- Redundancy and Non-Monotonicity}
+\begin{frame}{Two Surprises}
   \begin{columns}[T,onlytextwidth]
     \column{0.48\textwidth}
       \centering
-      \includegraphics[width=\textwidth,height=3.6cm,keepaspectratio]{synergy_decomposition.png}\\[0.3em]
-      \small\textbf{Channels are sub-additive} (in this setting)\\
-      $I{=}{-}26{\pm}3$\,pp at $K{=}3$.
-      Clarification matters most when passive inference is weak ---
-      \alert{$+22.6$\,pp} under full first-action aliasing.
+      \includegraphics[width=\textwidth,height=3.8cm,keepaspectratio]{synergy_decomposition.png}\\[0.5em]
+      \small\textbf{Watching and asking \alert{overlap}.}\\[0.2em]
+      Their benefits don't add up ---\\
+      asking matters most when watching fails.
     \column{0.48\textwidth}
       \centering
-      \includegraphics[width=\textwidth,height=3.6cm,keepaspectratio]{beta_inverted_u.png}\\[0.3em]
-      \small\textbf{Assistability is non-monotonic in $\beta$} (in our benchmark)\\
-      NeverAsk peaks at $\beta{=}8$ ($92\%$) then \alert{drops to $84\%$}
-      at $\beta{=}16$ as action diversity collapses.
-      AskOrAct detects this and asks more.
+      \includegraphics[width=\textwidth,height=3.8cm,keepaspectratio]{beta_inverted_u.png}\\[0.5em]
+      \small\textbf{A \alert{more rational} partner\\ is \alert{not always easier} to help.}\\[0.2em]
+      Their actions stop varying ---\\
+      so a smart assistant asks \emph{more}.
   \end{columns}
 \end{frame}
 
 % =============================================================
-\begin{frame}{Finding 3 --- More Observation Can Hurt, and the Fix}
+\begin{frame}{When Watching Hurts --- and the Fix}
   \begin{columns}[T,onlytextwidth]
-    \column{0.46\textwidth}
+    \column{0.48\textwidth}
       \centering
-      \includegraphics[width=\textwidth,height=3.4cm,keepaspectratio]{obs_hurts_mismatch.png}\\[0.3em]
+      \includegraphics[width=\textwidth,height=3.8cm,keepaspectratio]{obs_hurts_mismatch.png}\\[0.4em]
       \small
-      Forced passive observation costs \alert{$-2.2$\,pp/step} under
-      $\beta$-mismatch vs.\ $-0.8$ matched.
-      Three decision-layer fixes all fail --- the bottleneck is
-      \alert{posterior quality}.
-    \column{0.52\textwidth}
-      \begin{block}{AskOrAct-ST: fix the posterior}
+      When the assistant's model is wrong,\\
+      every extra step of watching\\
+      makes things \alert{worse}, not better.
+    \column{0.48\textwidth}
+      \begin{block}{The fix}
         \small
-        Temper passive updates by $\omega_t \in (0,1]$ from a
-        CUSUM surprise accumulator.
-        Down-weight observations that are unlikely under the assumed model.
-        \begin{itemize}\small
-          \item Matched: $+0.0 \pm 1.6$\,pp (no harm)
-          \item Mismatched ($\beta_{\text{true}}{=}1$): \alert{$+1$--$+5$\,pp}
-        \end{itemize}
+        When an observation looks surprising,\\
+        \textbf{trust it less.}\\[0.3em]
+        Matched model: no harm.\\
+        Wrong model: recovers the loss.
       \end{block}
-      \vspace{0.4em}
-      \begin{block}{Three takeaways}
+      \vspace{0.5em}
+      \begin{block}{Takeaways}
         \small
         \begin{enumerate}
-          \item Channels are sub-additive --- exploit redundancy, don't stack.
-          \item Rationality can \emph{hurt} passive inference.
-          \item Under mismatch, fix the \textbf{posterior}, not the gate.
+          \item Watching and asking \emph{overlap} --- don't stack them.
+          \item A more rational partner is not always easier.
+          \item When your model is wrong, fix \emph{what you believe}, not \emph{when you speak}.
         \end{enumerate}
       \end{block}
   \end{columns}
+\end{frame}
+
+\appendix
+
+% =============================================================
+\begin{frame}{Appendix A: Prior Work Comparison}
+  \footnotesize
+  \centering
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lcccccc}
+    \toprule
+    Feature & \rotatebox{60}{CLIPS} & \rotatebox{60}{GRD} & \rotatebox{60}{PAGR} & \rotatebox{60}{ATD} & \rotatebox{60}{ShootFirst} & \rotatebox{60}{\textbf{Ours}} \\
+    \midrule
+    Action-based goal inference & \checkmark & $\circ$ & \checkmark & -- & -- & \checkmark \\
+    Explicit ask-or-act decision & -- & -- & $\circ$ & \checkmark & \checkmark & \checkmark \\
+    Typed questions with cost $c_q$ & -- & -- & -- & \checkmark & -- & \checkmark \\
+    Task completion, not just recognition & \checkmark & -- & -- & \checkmark & \checkmark & \checkmark \\
+    Controlled ambiguity-$K$ sweep & -- & -- & -- & -- & -- & \checkmark \\
+    Ground-truth task success & $\circ$ & -- & -- & -- & $\circ$ & \checkmark \\
+    \bottomrule
+  \end{tabular}
+
+  \vspace{0.6em}
+  \raggedright
+  \scriptsize
+  \checkmark\ present \quad $\circ$\ partial \quad -- absent
 \end{frame}
 
 \end{document}

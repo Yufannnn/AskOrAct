@@ -3,11 +3,11 @@
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage[margin=0.75in, top=1.0in, bottom=0.9in]{geometry}
-\usepackage{newtxtext}
+\IfFileExists{binhex.tex}{\usepackage{newtxtext}}{}
 \usepackage{amsmath}
 \usepackage{amssymb}
-\usepackage{newtxmath}
-\usepackage{microtype}
+\IfFileExists{binhex.tex}{\usepackage{newtxmath}}{}
+\usepackage[expansion=false]{microtype}
 \usepackage[numbers,sort&compress]{natbib}
 \usepackage[dvipsnames]{xcolor}
 \usepackage[colorlinks=true, linkcolor=MidnightBlue, citecolor=MidnightBlue,
@@ -15,7 +15,7 @@
 \usepackage{booktabs}
 \usepackage{graphicx}
 \usepackage{placeins}
-\graphicspath{{../../results/figures/paper/}{../../results/figures/exploratory/}}
+\graphicspath{{results/figures/paper/}{results/figures/exploratory/}{../../results/figures/paper/}{../../results/figures/exploratory/}}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage[small, labelfont=bf, font=small, skip=4pt]{caption}
@@ -101,28 +101,6 @@ Goal recognition design~\cite{keren2014grd,dragan2013legibility} and PAGR~\cite{
 ATD~\cite{kobalczyk2025active}, SAGE~\cite{suri2025structured}, and Grand et al.~\cite{grand2026shoot} study clarification without observing principal actions, precluding measurement of channel interaction.
 Our benchmark is the first to control both channels simultaneously under a shared success--cost objective.
 
-\begin{table}[t]
-\centering
-\caption{Illustrative comparison to closest prior work (not an exhaustive survey).
-\checkmark~=~present; $\circ$~=~partial; --~=~absent.}
-\label{tab:prior_work}
-\resizebox{\columnwidth}{!}{%
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lccccccc}
-\toprule
-Feature & \rotatebox{60}{CLIPS} & \rotatebox{60}{GRD} & \rotatebox{60}{PAGR} & \rotatebox{60}{ATD} & \rotatebox{60}{ShootFirst} & \rotatebox{60}{\textbf{Ours}} \\
-\midrule
-Action-based goal inference    & \checkmark & $\circ$ & \checkmark & -- & -- & \checkmark \\
-Explicit ask-or-act decision   & -- & -- & $\circ$ & \checkmark & \checkmark & \checkmark \\
-Typed questions with cost $c_q$& -- & -- & -- & \checkmark & -- & \checkmark \\
-Task completion (not just recog.)& \checkmark & -- & -- & \checkmark & \checkmark & \checkmark \\
-Controlled ambiguity-$K$ sweep & -- & -- & -- & -- & -- & \checkmark \\
-Ground-truth task success      & $\circ$ & -- & -- & -- & $\circ$ & \checkmark \\
-\bottomrule
-\end{tabular}}
-\end{table}
-
 \section{Method}
 
 \subsection{Environment}
@@ -144,8 +122,8 @@ When the assistant decides to ask, it remains at its current position. When it d
 
 \begin{figure*}[t]
   \centering
-  \includegraphics[width=\textwidth]{setup_overview.png}
-  \caption{Task setup for $K{=}3$. Left: the $9{\times}9$ two-room gridworld. Room~0 (blue) and Room~1 (beige) are separated by a mid-wall with a single doorway (gold cell). Three red diamond objects share the surface instruction but only the starred one is the true goal, which is hidden from the assistant. P~=~principal, A~=~assistant. Right: the three information channels available to the assistant --- the instruction, the principal's observed actions, and the typed clarification menu.}
+  \includegraphics[width=0.7\textwidth]{setup_overview.png}
+  \caption{Task setup for $K{=}3$: gridworld and the assistant's three information channels.}
   \label{fig:setup_overview}
 \end{figure*}
 
@@ -184,16 +162,11 @@ All thresholds are hand-set, and the ablation in Section~\ref{sec:results} confi
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{ask_or_act_pipeline.png}
-  \caption{AskOrAct decision flow: instruction $\to$ posterior $\to$ observe + update $\to$ ASK or ACT. Dashed: answer feeds back.}
+  \caption{AskOrAct pipeline.}
   \label{fig:ask_or_act_pipeline}
 \end{figure}
 
 The full decision flow is illustrated in Figure~\ref{fig:ask_or_act_pipeline}.
-
-\subsection{Surprise-Tempered Updates (AskOrAct-ST)}
-
-Under model mismatch, standard Bayesian updates can poison the posterior (Section~\ref{sec:results}).
-\textit{AskOrAct-ST} addresses this by tempering the passive likelihood update by a weight $\omega_t \in (0,1]$ driven by a CUSUM-style surprise accumulator, so that observations whose action likelihood falls below the matched-model baseline are down-weighted. The gate and act branch are unchanged. Under a matched model $\omega_t \approx 1$, recovering standard updating. Full equations are in Appendix~\ref{app:derivation}.
 
 \subsection{Baselines}
 
@@ -218,7 +191,7 @@ Primary metrics are \textit{success rate} and \textit{questions asked} per episo
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{main_dashboard.png}
-  \caption{Success rate, regret, and questions asked by ambiguity $K$ (averaged over $\varepsilon$, $\beta$; error bars: 95\% bootstrap CI). Policies diverge at $K{\geq}3$; InfoGainAsk trades more questions for higher success.}
+  \caption{Success, regret, and questions by ambiguity $K$ (95\% bootstrap CI).}
   \label{fig:main}
 \end{figure}
 
@@ -232,7 +205,7 @@ Table~\ref{tab:main} summarises the key aggregate results, and full per-$(K,\var
 
 \begin{table}[h]
 \centering
-\caption{Mean results averaged over all $(\varepsilon, \beta)$ conditions. $C$ = surrogate team cost (steps $+ c_q {\cdot}$ questions; lower is better). \textbf{Bold}: best success; \underline{uline}: lowest $C$ (secondary).}
+\caption{Mean results over all $(\varepsilon,\beta)$ conditions. $C$ is surrogate team cost.}
 \label{tab:main}
 \small
 \begin{tabular}{llrrrr}
@@ -287,7 +260,7 @@ At $K{=}4$ the effect is weaker, and we report it as regime-dependent rather tha
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{beta_inverted_u.png}
-  \caption{Success vs.\ $\beta$ at $K{=}3$. NeverAsk drops at high $\beta$ (action aliasing); AskOrAct compensates. $K{=}4$ shows a weaker effect (not shown).}
+  \caption{Success vs.\ $\beta$ at $K{=}3$.}
   \label{fig:beta_u}
 \end{figure}
 
@@ -342,7 +315,26 @@ I used Claude Sonnet 4.6 (Anthropic) for coding assistance, debugging, and LaTeX
 \section{Prior Work Comparison}
 \label{app:prior_work_table}
 
-See Table~\ref{tab:prior_work} in the Related Work section of the main text.
+\begin{table}[h]
+\centering
+\caption{Comparison to closest prior work. \checkmark~=~present; $\circ$~=~partial; --~=~absent.}
+\label{tab:prior_work}
+\resizebox{\columnwidth}{!}{%
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccccccc}
+\toprule
+Feature & \rotatebox{60}{CLIPS} & \rotatebox{60}{GRD} & \rotatebox{60}{PAGR} & \rotatebox{60}{ATD} & \rotatebox{60}{ShootFirst} & \rotatebox{60}{\textbf{Ours}} \\
+\midrule
+Action-based goal inference    & \checkmark & $\circ$ & \checkmark & -- & -- & \checkmark \\
+Explicit ask-or-act decision   & -- & -- & $\circ$ & \checkmark & \checkmark & \checkmark \\
+Typed questions with cost $c_q$& -- & -- & -- & \checkmark & -- & \checkmark \\
+Task completion (not just recog.)& \checkmark & -- & -- & \checkmark & \checkmark & \checkmark \\
+Controlled ambiguity-$K$ sweep & -- & -- & -- & -- & -- & \checkmark \\
+Ground-truth task success      & $\circ$ & -- & -- & -- & $\circ$ & \checkmark \\
+\bottomrule
+\end{tabular}}
+\end{table}
 
 \section{Posterior Updates, Decision Rule, and AskOrAct-ST}
 \label{app:derivation}
@@ -361,6 +353,8 @@ When a question $q$ is answered $\alpha$, the posterior is updated by:
 where answer noise is 0.05 (color), 0.10 (room), and 0.20 (type).
 
 \textbf{AskOrAct-ST update.}
+Under model mismatch, standard Bayesian updates can poison the posterior. AskOrAct-ST keeps the same ask gate and act branch as AskOrAct, but tempers passive updates when observed principal actions look surprising under the assistant's assumed model.
+
 Under mismatch the passive update is tempered:
 \[
   b_{t+1}(g) \propto b_t(g) \cdot \pi(a_t \mid s_t, g, \hat\beta)^{\omega_t},
@@ -408,7 +402,7 @@ This simplification makes the decision $O(|\mathcal{Q}| \cdot |\mathcal{G}| \cdo
 
 \begin{table}[h]
 \centering
-\caption{Within-template T3 (color-only). Isolates the effect of $K$ by holding template constant.}
+\caption{Within-template T3 control.}
 \label{tab:t3}
 \scriptsize
 \begin{tabular}{llrr}
@@ -432,8 +426,7 @@ Entries at $K{=}1$ are omitted since all policies achieve 100\% success with 0 q
 
 \begin{table*}[h]
 \centering
-\caption{Per-$(K, \varepsilon)$ results for the five core policies, averaged over $\beta$.
-$K{=}1$ omitted (trivial: all 100\%).}
+\caption{Per-$(K,\varepsilon)$ results for the five core policies, averaged over $\beta$.}
 \label{tab:full_results}
 \scriptsize
 \resizebox{\textwidth}{!}{%
@@ -482,7 +475,7 @@ Extending the window to 10 shows diminishing returns at $K{=}3,4$ because the po
 \begin{figure}[h]
   \centering
   \includegraphics[width=\columnwidth]{gridworld_layout.png}
-  \caption{Two-room $9{\times}9$ gridworld. Room~0 (blue, left) and Room~1 (yellow, right) are separated by a mid-wall with a single doorway. Gold rings mark the $K{=}2$ candidate goals; P~=~principal, A~=~assistant.}
+  \caption{Two-room $9{\times}9$ gridworld.}
   \label{fig:gridworld}
 \end{figure}
 
@@ -530,7 +523,7 @@ Four surface-form templates are used as shown in Table~\ref{tab:templates}. Ambi
 
 \begin{table}[h]
 \centering
-\caption{Instruction templates. Object attributes: type $\in$ \{key, gem, coin\}, color $\in$ \{red, blue, green\}, room $\in$ \{room0, room1\}.}
+\caption{Instruction templates.}
 \label{tab:templates}
 \small
 \begin{tabular}{llp{2.8cm}}
@@ -580,7 +573,7 @@ All baselines share the same act branch of greedy A* toward the MAP goal and dif
 
 \begin{table}[h]
 \centering
-\caption{Baseline ask-gating conditions (act branch is always A* to MAP goal).}
+\caption{Baseline ask-gating conditions.}
 \label{tab:baselines_conditions}
 \small
 \begin{tabular}{lp{4.2cm}}
@@ -609,13 +602,13 @@ Asking matters most when passive inference is structurally unable to resolve amb
 \begin{figure}[h]
   \centering
   \includegraphics[width=\columnwidth]{obs_hurts_mismatch.png}
-  \caption{Forced observation horizon $h$ vs.\ success at $K{=}4$. Under mismatch ($\beta_\text{true}{=}1$), more observation actively hurts.}
+  \caption{Forced observation horizon vs.\ success at $K{=}4$.}
   \label{fig:obs_hurts}
 \end{figure}
 
 \begin{table}[h]
 \centering
-\caption{AskOrAct vs.\ AskOrAct-ST (surprise-tempered). $\Delta$: gain from tempering.}
+\caption{AskOrAct vs.\ AskOrAct-ST. $\Delta$: gain from tempering.}
 \label{tab:temper}
 \scriptsize
 \begin{tabular}{llrrl}
@@ -636,14 +629,14 @@ $K$ & Condition & AskOrAct & ST & $\Delta$ (pp) \\
 \begin{figure}[h]
   \centering
   \includegraphics[width=\columnwidth]{action_drop_sweep.png}
-  \caption{Passive channel degradation at $K{=}4$. Top: success rate vs.\ $p_\text{drop}$. Bottom: Q/ep. AskOrAct adaptively asks more as passive inference weakens.}
+  \caption{Passive channel degradation at $K{=}4$.}
   \label{fig:action_drop}
 \end{figure}
 
 \begin{figure}[h]
   \centering
   \includegraphics[width=\columnwidth]{synergy_decomposition.png}
-  \caption{Channel ablation interaction under AskOrAct. Negative = sub-additive channel use. $I$ values annotated per $K$.}
+  \caption{Channel interaction under AskOrAct.}
   \label{fig:synergy}
 \end{figure}
 
@@ -652,7 +645,7 @@ Table~\ref{tab:noise_sweep} shows AskOrAct vs.\ NeverAsk success at $K{=}3$ and 
 
 \begin{table}[h]
 \centering
-\caption{Success rate (\%) under global answer noise, averaged over $(\varepsilon,\beta)$ conditions.}
+\caption{Success (\%) under global answer noise.}
 \label{tab:noise_sweep}
 \small
 \begin{tabular}{lrrrrrr}
@@ -682,7 +675,7 @@ Table~\ref{tab:mismatch} shows results at $K{=}3$ averaged over $\varepsilon$.
 
 \begin{table}[h]
 \centering
-\caption{Success rate (\%) under principal model mismatch ($\hat\beta{=}2$ fixed, $K{=}3$).}
+\caption{Success (\%) under principal model mismatch at $K{=}3$.}
 \label{tab:mismatch}
 \small
 \begin{tabular}{lrrr}
@@ -704,7 +697,7 @@ Table~\ref{tab:scalek} extends results to $K \in \{5,6\}$ using the same hyperpa
 
 \begin{table}[h]
 \centering
-\caption{Success rate (\%) at $K{\in}\{5,6\}$, averaged over $(\varepsilon,\beta)$.}
+\caption{Success (\%) at $K{\in}\{5,6\}$.}
 \label{tab:scalek}
 \small
 \begin{tabular}{lrr}
@@ -752,7 +745,7 @@ A sensitivity sweep over $\tau_H \in [0.2, 0.5]$ and ask window $\in \{6, 10\}$ 
 
 \begin{table}[h]
 \centering
-\caption{Ablation results for \textit{AskOrAct} at $K{=}3,4$, averaged over $(\varepsilon, \beta)$ and ablation variants (wrong-pick-fail $\in\{$T,F$\}$, deadline margin $\in\{3,5,7\}$). Lower success than Table~\ref{tab:main} reflects the harsh variant mix.}
+\caption{Ablation results for \textit{AskOrAct} at $K{=}3,4$.}
 \label{tab:ablations}
 \small
 \begin{tabular}{llrrr}
