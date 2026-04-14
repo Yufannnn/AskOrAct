@@ -60,10 +60,11 @@
 \centerline{\parbox{0.92\textwidth}{\small
 \textbf{Abstract.}\enspace
 A cooperative assistant can infer a principal's goal by passively observing actions or actively asking costly questions.
-No prior benchmark combines both channels; we build the first and uncover three findings.
-(1)~The channels are used \emph{sub-additively} ($I{=}{-}26{\pm}3$\,pp): a cost-aware policy extracts overlapping information from each source.
-(2)~Assistability is \emph{non-monotonic} in rationality: higher $\beta$ can \emph{hurt} because action aliasing hides intent ($92\%{\to}84\%$ at $K{=}3$, $\beta{:}8{\to}16$).
-(3)~Under model mismatch, passive observation \emph{poisons} the posterior ($-2.2$\,pp/step vs.\ $-0.8$ matched); three decision-layer fixes all fail, but surprise-tempered updates (AskOrAct-ST) recover $+1$--$+5$\,pp with zero matched-model harm.
+To our knowledge, no prior benchmark controls both channels simultaneously; we build one and use it to study how passive and active evidence interact under a shared success--cost objective.
+Three findings emerge from 19{,}800 episodes across six policies.
+First, the channels are used sub-additively in this setting, with an interaction of $I{=}{-}26{\pm}3$\,pp at $K{=}3$, suggesting that a cost-aware policy largely extracts overlapping information from each source.
+Second, in our benchmark assistability is non-monotonic in principal rationality: NeverAsk success falls from $92\%$ to $84\%$ as $\beta$ rises from 8 to 16 at $K{=}3$, because extreme rationality collapses action diversity and hides intent.
+Third, under model mismatch, forced passive observation hurts more than in the matched case ($-2.2$\,pp/step vs.\ $-0.8$\,pp), and decision-layer fixes do not recover this loss; surprise-tempered posterior updates recover $+1$--$+5$\,pp under mismatch with no harm when the model is correct.
 }}
 \vspace{14pt}
 }]
@@ -81,31 +82,54 @@ The contributions are threefold, comprising a reproducible two-room gridworld wi
 Our contribution is not a new ask policy, but, to our knowledge, the first controlled characterisation of how the value of active clarification changes as passive action evidence weakens, with the empirical success--question-cost frontier shifting substantially with principal rationality.
 
 \textbf{Why a controlled benchmark?}
-Prior work studies each channel in isolation: CLIPS~\cite{tan2024clips} performs inverse planning without asking, while ATD~\cite{kobalczyk2025active}, SAGE~\cite{suri2025structured}, and Grand et al.~\cite{grand2026shoot} study clarification without action-based inference.
-To our knowledge, no prior benchmark combines both channels with controlled ambiguity sweeps; Table~\ref{tab:prior_work} in Appendix~\ref{app:prior_work_table} shows the comparison.
-The gap is the ability to study how passive and active evidence \emph{interact} under a shared objective.
+Prior work on inverse planning and clarification studies each channel in isolation, as reviewed in the Related Work section below.
+To our knowledge, no prior benchmark combines both under controlled ambiguity sweeps, so it has not been possible to measure how the two sources of evidence interact.
+Our benchmark is designed to fill exactly this gap.
 
 \textbf{Three Takeaways.}
-(1)~The channels are used \emph{sub-additively} ($I{=}{-}26$\,pp at $K{=}3$): AskOrAct extracts overlapping information; clarification matters most when passive inference is structurally weak.
-(2)~Assistability is \emph{non-monotonic} in $\beta$: extreme rationality collapses action diversity and hides intent, so NeverAsk success falls at high $\beta$.
-(3)~Under model mismatch, forced observation costs $-2.2$\,pp/step ($2.8\times$ the matched rate), explaining why passive-aware decision-layer heuristics fail.
+First, the channels are used \emph{sub-additively}, with $I{=}{-}26$\,pp at $K{=}3$, meaning AskOrAct extracts overlapping information and clarification matters most when passive inference is structurally weak.
+Second, assistability is \emph{non-monotonic} in $\beta$, as extreme rationality collapses action diversity and hides intent, causing NeverAsk success to fall at high $\beta$.
+Third, under model mismatch, forced observation costs $-2.2$\,pp/step, which is $2.8\times$ the matched rate, explaining why passive-aware decision-layer heuristics fail.
 The benchmark is intended as a reusable testbed for future ask-or-act methods.
 
 \section{Related Work}
+\label{sec:related}
 
-Inverse planning infers goals from behaviour~\cite{baker2009,ramirez2010plan}; CIRL~\cite{hadfield2016cirl} formalises cooperative teams; CLIPS~\cite{tan2024clips} adds language evidence---none provides an ask-or-act decision.
+Inverse planning infers goals from behaviour~\cite{baker2009,ramirez2010plan}. CIRL~\cite{hadfield2016cirl} formalises cooperative teams, and CLIPS~\cite{tan2024clips} adds language evidence, but none of these provides an ask-or-act decision.
 Shared autonomy~\cite{javdani2015shared} and HRI clarification~\cite{tellex2014asking,cakmak2012designing} study one channel at a time.
 Goal recognition design~\cite{keren2014grd,dragan2013legibility} and PAGR~\cite{zhang2025pagr} target recognition, not task completion with costly typed questions.
 ATD~\cite{kobalczyk2025active}, SAGE~\cite{suri2025structured}, and Grand et al.~\cite{grand2026shoot} study clarification without observing principal actions, precluding measurement of channel interaction.
 Our benchmark is the first to control both channels simultaneously under a shared success--cost objective.
 
+\begin{table}[t]
+\centering
+\caption{Illustrative comparison to closest prior work (not an exhaustive survey).
+\checkmark~=~present; $\circ$~=~partial; --~=~absent.}
+\label{tab:prior_work}
+\resizebox{\columnwidth}{!}{%
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lccccccc}
+\toprule
+Feature & \rotatebox{60}{CLIPS} & \rotatebox{60}{GRD} & \rotatebox{60}{PAGR} & \rotatebox{60}{ATD} & \rotatebox{60}{ShootFirst} & \rotatebox{60}{\textbf{Ours}} \\
+\midrule
+Action-based goal inference    & \checkmark & $\circ$ & \checkmark & -- & -- & \checkmark \\
+Explicit ask-or-act decision   & -- & -- & $\circ$ & \checkmark & \checkmark & \checkmark \\
+Typed questions with cost $c_q$& -- & -- & -- & \checkmark & -- & \checkmark \\
+Task completion (not just recog.)& \checkmark & -- & -- & \checkmark & \checkmark & \checkmark \\
+Controlled ambiguity-$K$ sweep & -- & -- & -- & -- & -- & \checkmark \\
+Ground-truth task success      & $\circ$ & -- & -- & -- & $\circ$ & \checkmark \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
 \section{Method}
 
 \subsection{Environment}
 
-We use a $9{\times}9$ two-room gridworld (Figure~\ref{fig:gridworld}, Appendix~\ref{app:episode_gen}) with $M{=}6$ object instances per episode.
+We use a $9{\times}9$ two-room gridworld with $M{=}6$ object instances per episode. The cooperative setup is illustrated in Figure~\ref{fig:setup_overview}.
 Room~0 and Room~1 are separated by a mid-wall with a single doorway.
-Each episode samples 6 objects from types $\{\text{key}, \text{gem}, \text{coin}\}$ and colours $\{\text{red}, \text{blue}, \text{green}\}$; exactly $K$ match the ambiguous instruction (candidate goals) and $M{-}K$ are distractors.
+Each episode samples 6 objects from types $\{\text{key}, \text{gem}, \text{coin}\}$ and colours $\{\text{red}, \text{blue}, \text{green}\}$. Exactly $K$ of them match the ambiguous instruction and serve as candidate goals, while the remaining $M{-}K$ are distractors.
 
 A principal has a hidden goal object.
 An instruction template maps the goal to a surface form shared by $K$ candidate goals (ambiguity level $K$).
@@ -118,28 +142,21 @@ An episode ends when the assistant picks an object, which counts as success if c
 The question bank $\mathcal{Q}$ contains three types of questions addressing the goal's colour, room, and object type, each with a factual answer drawn from a per-type noisy channel.
 When the assistant decides to ask, it remains at its current position. When it decides to act, it takes one step toward the MAP-goal object via A* navigation and then re-evaluates.
 
-Full hyperparameters are in Appendix~\ref{app:episode_gen}, Table~\ref{tab:setup}; the cooperative setup is illustrated in Appendix~\ref{app:episode_gen}, Figure~\ref{fig:setup_overview}.
+\begin{figure*}[t]
+  \centering
+  \includegraphics[width=\textwidth]{setup_overview.png}
+  \caption{Task setup for $K{=}3$. Left: the $9{\times}9$ two-room gridworld. Room~0 (blue) and Room~1 (beige) are separated by a mid-wall with a single doorway (gold cell). Three red diamond objects share the surface instruction but only the starred one is the true goal, which is hidden from the assistant. P~=~principal, A~=~assistant. Right: the three information channels available to the assistant --- the instruction, the principal's observed actions, and the typed clarification menu.}
+  \label{fig:setup_overview}
+\end{figure*}
+
+Full hyperparameters are in Appendix~\ref{app:episode_gen}, Table~\ref{tab:setup}.
 
 \subsection{Bayesian Posterior}
 
-\textbf{Per-step protocol.}
-The assistant observes the principal's action, updates $b_t$, then asks or acts; if asking it updates $b_t$ again from the answer, if acting it moves one A* step toward the MAP goal.
-
-The assistant maintains a posterior $b_t(g)$ over candidate goals $\mathcal{G}$.
-Initialisation uses the instruction likelihood under each goal.
-After observing principal action $a_t$ at state $s_t$:
-\[
-  b_{t+1}(g) \propto b_t(g) \cdot \pi_{\hat\beta,\hat\varepsilon}(a_t \mid s_t, g),
-\]
-where $\hat\beta, \hat\varepsilon$ are the assistant's assumed principal parameters, matched to the true values unless otherwise noted in the mismatch analysis.
-
-When a question $q$ is asked and answered $\alpha$, the posterior is updated by the answer likelihood:
-\[
-  b(g) \propto b(g) \cdot P(\alpha \mid q, g, \text{noise}),
-\]
-where the answer noise varies by type, with color at 0.05, room at 0.10, and object at 0.20.
+The assistant maintains a posterior $b_t(g)$ over candidate goals, initialised uniformly, and updated at each step via Bayes' rule using the Boltzmann action likelihood for passive observations and a noisy answer channel for active questions. Full update equations are in Appendix~\ref{app:derivation}.
 
 \subsection{Ask-or-Act Policy}
+\label{sec:method_askoract}
 
 \textit{AskOrAct} uses a Bayes-risk ask gate to decide \emph{whether} to ask, paired with a separate MAP$+$A* controller for motion execution.
 The ask gate compares the expected surrogate team cost, defined as navigation steps plus per-question penalty $c_q$, of asking versus acting under the current posterior $b_t$.
@@ -162,38 +179,25 @@ The policy selects $\arg\min_q \text{CostAsk}(q)$ when $\min_q \text{CostAsk}(q)
 Because the surrogate cost $C$ does not penalise wrong picks, this comparison minimises effort under the current posterior but does not account for failure risk.
 
 \textbf{Heuristic guards.}
-Three constraints are imposed for robustness and are not part of the decision-theoretic derivation: (i)~entropy gate $H(b_t){\leq}0.3$ provides a fast exit; (ii)~asking is disallowed after step 6; (iii)~at most $Q_{\max}{=}3$ questions per episode.
-All thresholds are hand-set; the ablation in Section~\ref{sec:results} shows $c_q$ dominates (Appendix~\ref{app:hyperparams}).
-The full decision flow is illustrated in Appendix~\ref{app:pseudocode}, Figure~\ref{fig:ask_or_act_pipeline}.
+Three constraints are imposed for robustness and are not part of the decision-theoretic derivation. An entropy gate suppresses asking when $H(b_t){\leq}0.3$, asking is disallowed after step 6, and at most $Q_{\max}{=}3$ questions are permitted per episode.
+All thresholds are hand-set, and the ablation in Section~\ref{sec:results} confirms that $c_q$ dominates, as detailed in Appendix~\ref{app:hyperparams}.
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{ask_or_act_pipeline.png}
+  \caption{AskOrAct decision flow: instruction $\to$ posterior $\to$ observe + update $\to$ ASK or ACT. Dashed: answer feeds back.}
+  \label{fig:ask_or_act_pipeline}
+\end{figure}
+
+The full decision flow is illustrated in Figure~\ref{fig:ask_or_act_pipeline}.
 
 \subsection{Surprise-Tempered Updates (AskOrAct-ST)}
 
-Under model mismatch, standard Bayesian updates can poison the posterior as shown in Section~\ref{sec:results}.
-We address this with a surprise-triggered likelihood tempering that modifies the passive update without changing the ask-or-act policy:
-\[
-  b_{t+1}(g) \propto b_t(g) \cdot \pi(a_t \mid s_t, g, \hat\beta)^{\omega_t},
-\]
-where $\omega_t \in (0, 1]$ controls how much the passive observation is trusted.
-The tempering weight is driven by a CUSUM-style surprise accumulator:
-\[
-  S_t = \max\bigl(0,\; \gamma\, S_{t-1} + \bigl(-\!\log p_t(a_t) - \mu\bigr)\bigr),
-  \quad \omega_t = \frac{1}{1 + S_t / \tau},
-\]
-where $p_t(a_t) = \sum_g b_t(g)\,\pi(a_t \mid s_t, g, \hat\beta)$ is the predictive action probability, $\mu{=}1.5$ is the matched-model baseline surprise, $\gamma{=}0.9$ is the forgetting rate, and $\tau{=}3.0$ is the tempering scale.
-Under a matched model, $S_t \approx 0$ so $\omega_t \approx 1$, recovering standard Bayesian updating.
-Under mismatch, $S_t$ grows and $\omega_t$ shrinks, downweighting unreliable passive evidence.
-
-This intervenes at the \emph{inference} layer rather than the decision layer, and the ask-or-act gate remains unchanged.
-Three prior attempts to improve the decision layer all failed as described in Section~\ref{sec:results}, motivating an inference-layer intervention instead.
+Under model mismatch, standard Bayesian updates can poison the posterior (Section~\ref{sec:results}).
+\textit{AskOrAct-ST} addresses this by tempering the passive likelihood update by a weight $\omega_t \in (0,1]$ driven by a CUSUM-style surprise accumulator, so that observations whose action likelihood falls below the matched-model baseline are down-weighted. The gate and act branch are unchanged. Under a matched model $\omega_t \approx 1$, recovering standard updating. Full equations are in Appendix~\ref{app:derivation}.
 
 \subsection{Baselines}
 
-All baselines share the same act branch (A* toward MAP goal) and differ only in their ask-gating condition; formal conditions appear in Appendix~\ref{app:pseudocode}, Table~\ref{tab:baselines_conditions}.
-\textbf{NeverAsk} never asks.
-\textbf{AlwaysAsk} asks the highest-IG question whenever the entropy and budget gates permit.
-\textbf{InfoGainAsk} adds an information-gain threshold gate.
-\textbf{RandomAsk} uses the same gates as InfoGainAsk but picks a question uniformly at random.
-\textbf{EasyInfoGainAsk} ($Q_{\max}{=}1$, no entropy gate) and \textbf{POMCPPlanner} (POMCP~\cite{silver2010pomcp}, 250 iterations, horizon 8) are side diagnostics evaluated only at $K{=}2$.
+All baselines share the same A* act branch and differ only in their ask-gating condition. The five core policies are NeverAsk, AlwaysAsk, InfoGainAsk, RandomAsk, and AskOrAct. EasyInfoGainAsk and POMCPPlanner~\cite{silver2010pomcp} are side diagnostics at $K{=}2$ only. Formal gating conditions are in Appendix~\ref{app:pseudocode}, Table~\ref{tab:baselines_conditions}.
 
 \section{Experimental Setup}
 \label{sec:setup}
@@ -204,15 +208,7 @@ The 5 core policies are evaluated in every cell, and \textit{EasyInfoGainAsk} an
 This yields a total of 19{,}800 episodes.
 
 \textbf{Metrics.}
-The two primary axes are \textit{success rate}, the fraction of episodes where the assistant picks the true goal, and \textit{questions asked}, averaged per episode.
-Together these define the empirical success--question-cost frontier.
-We also report the \textit{surrogate team cost} $C {=} \text{steps} {+} c_q {\cdot} |\text{questions}|$, the effort scalar AskOrAct minimises. Note that $C$ does not penalise wrong picks, as success rate captures that dimension.
-\textit{Regret} $= C - C^*_{\text{oracle}}$ measures excess effort relative to the oracle's shortest-path cost $C^*_{\text{oracle}}$.
-Because $C$ does not penalise wrong picks, regret is a secondary diagnostic and success rate is the primary outcome.
-
-\textbf{Statistics.}
-Key claims use \textit{paired seed-level deltas} (mean $\pm$1 s.e.\ over 5 seeds); figures show 95\% bootstrap CIs ($B{=}1000$).
-Full per-$(K,\varepsilon,\beta)$ breakdowns appear in Appendix~C.
+Primary metrics are \textit{success rate} and \textit{questions asked} per episode, which together define the success--question-cost frontier. We also report \textit{surrogate team cost} $C {=} \text{steps} {+} c_q{\cdot}|\text{questions}|$ and \textit{regret} $= C - C^*_{\text{oracle}}$ as secondary diagnostics. Key claims use paired seed-level deltas reported as mean $\pm$1 s.e.\ over 5 seeds; figures show 95\% bootstrap CIs. Full per-$(K,\varepsilon,\beta)$ breakdowns are in Appendix~C.
 
 \section{Results}
 \label{sec:results}
@@ -230,9 +226,7 @@ Figure~\ref{fig:main} shows results averaged across all $\varepsilon$ and $\beta
 At $K{=}1$, where there is no ambiguity, all policies perform identically with 100\% success and zero questions.
 As ambiguity rises to $K{\geq}3$, policies diverge.
 
-\textbf{Caveat: K is not a pure manipulation.}
-Template feasibility changes with $K$ (e.g.\ T2 is excluded at $K{\geq}2$).
-A within-template T3 control restricts to the color-only template across $K{\in}\{2,3,4\}$; AskOrAct--NeverAsk deltas of $-2$, $+3$, $+7$\,pp confirm the advantage grows with $K$ (Appendix~\ref{app:t3}, Table~\ref{tab:t3}).
+\textbf{Caveat.} Template feasibility changes with $K$; a within-template T3 control confirms the AskOrAct advantage grows with $K$ (Appendix~\ref{app:t3}).
 
 Table~\ref{tab:main} summarises the key aggregate results, and full per-$(K,\varepsilon,\beta)$ results appear in Appendix~C.
 
@@ -268,7 +262,7 @@ $K$ & Policy & Success & $C\!\downarrow$ & Regret & Q/ep \\
 AskOrAct achieves the lowest surrogate cost $C$ at every $K$, and neither policy is universally preferable without an application-specific exchange rate.
 
 \textbf{Gain from asking: AskOrAct vs.\ NeverAsk.}
-At $K{=}3$ the gain is $+7.9 \pm 1.2$\,pp, with mean $\pm$ s.e.\ over 5 seeds and a 95\% CI of $[5.0, 10.8]$.
+At $K{=}3$ the gain is $+7.9 \pm 1.2$\,pp, with a 95\% CI of $[5.0, 10.8]$.
 At $K{=}4$ the gain is $+8.4 \pm 1.4$\,pp with a 95\% CI of $[5.1, 12.1]$.
 The effect is positive for every seed with only $0.61$--$0.67$ questions per episode.
 \textit{AlwaysAsk} asks $2.3$--$2.6\times$ more but achieves lower or similar success, confirming over-asking is costly.
@@ -298,61 +292,39 @@ At $K{=}4$ the effect is weaker, and we report it as regime-dependent rather tha
 \end{figure}
 
 \textbf{Path overlap determines ask-worthiness.}
-When candidate goals share the same optimal first action (full aliasing), NeverAsk collapses to $64.5\%$ while AskOrAct maintains $87.1\%$ ($+22.6$\,pp).
+When candidate goals share the same optimal first action, a condition we call full aliasing, NeverAsk collapses to $64.5\%$ while AskOrAct maintains $87.1\%$, a gain of $+22.6$\,pp.
 When goals diverge spatially, both policies match at $100\%$.
 Episode-level stratification by overlap appears in Appendix~\ref{app:robustness}, Table~\ref{tab:overlap}.
 
 \textbf{More observation can hurt under mismatch.}
-Forcing $h$ pre-decision observation steps at $K{=}4$: under matched models success drops $-4$\,pp over 5 steps; under mismatch ($\beta_\text{true}{=}1$, $\hat\beta{=}2$) the same forced observation costs $-11$\,pp, confirming that passive inference is not merely less useful but actively harmful (Figure~\ref{fig:obs_hurts}, Appendix~\ref{app:robustness}).
+Forcing $h$ pre-decision observation steps at $K{=}4$ reveals a clear asymmetry. Under matched models, success drops $-4$\,pp over 5 steps, but under mismatch with $\beta_\text{true}{=}1$ and $\hat\beta{=}2$ the same forced observation costs $-11$\,pp, confirming that passive inference is not merely less useful but actively harmful. Full results are shown in Figure~\ref{fig:obs_hurts} in Appendix~\ref{app:robustness}.
 
 \textbf{Surprise-tempered updates mitigate mismatch.}
-Table~\ref{tab:temper} (Appendix~\ref{app:robustness}) shows AskOrAct-ST incurs no harm under matched models ($+0.0 \pm 1.6$\,pp) and gains $+3$--$+5$\,pp under mismatch.
-Three prior decision-layer interventions all failed ($-1$ to $-5$\,pp), indicating the bottleneck is posterior quality, not the ask-or-act gate.
+Table~\ref{tab:temper} in Appendix~\ref{app:robustness} shows that AskOrAct-ST incurs no harm under matched models, with $+0.0 \pm 1.6$\,pp, and recovers $+3$--$+5$\,pp under mismatch.
+Three prior decision-layer interventions all failed, costing $-1$ to $-5$\,pp, indicating the bottleneck is posterior quality rather than the ask-or-act gate.
 
-\textbf{Generalization.}
-Layout, prior, noise, grid-size, and room-count variations all preserve a positive AskOrAct--NeverAsk gap of $+2$--$+8$\,pp at $K{=}4$, with details provided in Appendix~\ref{app:robustness}.
-
-\textbf{Passive channel degradation.}
-As the fraction $p_\text{drop}$ of unobserved principal actions rises from 0 to 1, AskOrAct increases Q/ep from 0.66 to 1.11 at $K{=}4$ and its advantage over NeverAsk grows from $+4.0 \pm 5.3$\,pp to $+23.0 \pm 3.4$\,pp.
-InfoGainAsk holds a fixed ${\sim}1.5$ Q/ep regardless of $p_\text{drop}$, confirming only the cost-aware policy adapts (Figure~\ref{fig:action_drop}, Appendix~\ref{app:robustness}).
-
-\textbf{Sub-additive channel use.}
-Channel ablations (both / passive-only / active-only / neither) give interaction $I {=} {-}26 \pm 3.3$\,pp at $K{=}3$ and $-20 \pm 3.2$\,pp at $K{=}4$: AskOrAct extracts overlapping information from the two channels (Figure~\ref{fig:synergy}, Appendix~\ref{app:robustness}).
-Clarification is most valuable when passive inference is weak.
-
-
-
-\textbf{Ablations} (see Appendix~\ref{app:ablations} for full table) confirm that $c_q{>}0$ is the primary driver of selective asking: setting $c_q{=}0$ causes over-asking (1.61 q/ep) and degrades success, while the step-counting convention is negligible once cost is non-zero.
-AskOrAct's first question reduces posterior entropy similarly to InfoGainAsk at $K{=}3,4$, while asking roughly half as often.
+Additional robustness results covering generalization across layouts, passive channel degradation, sub-additive channel ablations, and hyperparameter sensitivity are in Appendix~\ref{app:robustness}.
 
 \section{Discussion}
 
-\textbf{Sub-additive channel use.}
-Channel ablations of AskOrAct show a negative interaction ($I{=}-26 \pm 3$\,pp at $K{=}3$), indicating the policy extracts overlapping information from the two channels.
-Asking matters most when passive inference is structurally unable to resolve ambiguity, as shown by the $+22.6$\,pp gain in the aliased regime.
-
 \textbf{The $\beta$ inverted-U and its mechanism.}
-The non-monotonic assistability finding follows from first-action informativeness: when all candidate goals share the same optimal first action, $I(\text{goal};\, a_1) \to 0$ as $\beta \to \infty$ (proof in Appendix~\ref{app:beta_proof}).
+The non-monotonic assistability finding follows from first-action informativeness. When all candidate goals share the same optimal first action, $I(\text{goal};\, a_1) \to 0$ as $\beta \to \infty$, as shown formally in Appendix~\ref{app:beta_proof}.
 Increasing $\beta$ then narrows the action distribution without increasing discriminative power.
 AskOrAct detects this regime and compensates by asking more.
 This interaction is invisible in single-channel benchmarks~\cite{kobalczyk2025active,grand2026shoot,tan2024clips} and recognition-only settings~\cite{keren2014grd,zhang2025pagr}.
 
 \textbf{Passive inference as a double-edged sword.}
-Under model mismatch, each forced observation step costs $-2.2$\,pp, which is $2.8\times$ the matched rate, actively poisoning the posterior as shown in Figure~\ref{fig:obs_hurts}.
+Under model mismatch, each forced observation step costs $-2.2$\,pp, which is $2.8\times$ the matched rate, and actively poisons the posterior as shown in Figure~\ref{fig:obs_hurts}.
 Straightforward passive-aware heuristics such as overlap checks and one-step lookahead fail to improve over AskOrAct because the myopic cost comparison already internalises much of the passive information value.
 An optimal policy should gate not only \emph{whether} to ask, but \emph{when} to stop trusting passive evidence---a design consideration absent from current ask-or-act methods.
 
-\textbf{Limitations and Future Work.}
-The question bank is fixed at 3 types; open-ended questions require a generative answer model.
-Scaling to larger environments would require particle-filter or amortised inference; real principals may be non-stationary.
-The $\beta$ inverted-U and observation-hurts findings are regime-dependent, and quantitative thresholds are benchmark-specific.
-Future work could investigate failure-aware objectives (the myopic surrogate does not price wrong picks) and adaptive $c_q$.
+Limitations and future directions are discussed in Appendix~\ref{app:limitations}.
 
 \section{Conclusion}
 
 We presented a controlled benchmark for ask-or-act decisions with both a diagnostic and a constructive contribution.
-On the diagnostic side, AskOrAct uses the two channels sub-additively ($I{=}-26$\,pp), assistability is non-monotonic in principal rationality, and under mismatch observation actively poisons the posterior at $-2.2$\,pp per step.
-On the constructive side, surprise-tempered posterior updates in AskOrAct-ST mitigate mismatch with no harm when matched and $+1$--$+5$\,pp gains under mismatch, after three decision-layer interventions all failed.
+On the diagnostic side, AskOrAct uses the two channels sub-additively with $I{=}-26$\,pp, assistability is non-monotonic in principal rationality, and under mismatch observation actively poisons the posterior at $-2.2$\,pp per step.
+On the constructive side, surprise-tempered posterior updates in AskOrAct-ST mitigate mismatch with no harm when models are matched and with $+1$--$+5$\,pp gains under mismatch, after three decision-layer interventions all failed.
 This suggests posterior quality is at least as important as the ask-or-act policy under misspecification.
 As a scope note, these findings characterise behaviour in a controlled gridworld under a Boltzmann principal, and generalization to richer environments and real human principals remains an open question.
 Code and data are available at \url{https://github.com/Yufannnn/AskOrAct}.
@@ -370,31 +342,36 @@ I used Claude Sonnet 4.6 (Anthropic) for coding assistance, debugging, and LaTeX
 \section{Prior Work Comparison}
 \label{app:prior_work_table}
 
-\begin{table}[h]
-\centering
-\caption{Illustrative comparison to closest prior work (not an exhaustive survey).
-\checkmark~=~present; $\circ$~=~partial; --~=~absent.}
-\label{tab:prior_work}
-\resizebox{\columnwidth}{!}{%
-\small
-\setlength{\tabcolsep}{4pt}
-\begin{tabular}{lccccccc}
-\toprule
-Feature & \rotatebox{60}{CLIPS} & \rotatebox{60}{GRD} & \rotatebox{60}{PAGR} & \rotatebox{60}{ATD} & \rotatebox{60}{ShootFirst} & \rotatebox{60}{\textbf{Ours}} \\
-\midrule
-Action-based goal inference    & \checkmark & $\circ$ & \checkmark & -- & -- & \checkmark \\
-Explicit ask-or-act decision   & -- & -- & $\circ$ & \checkmark & \checkmark & \checkmark \\
-Typed questions with cost $c_q$& -- & -- & -- & \checkmark & -- & \checkmark \\
-Task completion (not just recog.)& \checkmark & -- & -- & \checkmark & \checkmark & \checkmark \\
-Controlled ambiguity-$K$ sweep & -- & -- & -- & -- & -- & \checkmark \\
-Ground-truth task success      & $\circ$ & -- & -- & -- & $\circ$ & \checkmark \\
-\bottomrule
-\end{tabular}}
-\end{table}
+See Table~\ref{tab:prior_work} in the Related Work section of the main text.
 
-\section{Derivation of the Ask-or-Act Decision Rule}
+\section{Posterior Updates, Decision Rule, and AskOrAct-ST}
 \label{app:derivation}
 
+\textbf{Posterior updates.}
+The assistant maintains a posterior $b_t(g)$ over candidate goals $\mathcal{G}$, initialised uniformly.
+After observing principal action $a_t$ at state $s_t$:
+\[
+  b_{t+1}(g) \propto b_t(g) \cdot \pi_{\hat\beta,\hat\varepsilon}(a_t \mid s_t, g),
+\]
+where $\hat\beta, \hat\varepsilon$ are the assistant's assumed principal parameters.
+When a question $q$ is answered $\alpha$, the posterior is updated by:
+\[
+  b(g) \propto b(g) \cdot P(\alpha \mid q, g, \text{noise}),
+\]
+where answer noise is 0.05 (color), 0.10 (room), and 0.20 (type).
+
+\textbf{AskOrAct-ST update.}
+Under mismatch the passive update is tempered:
+\[
+  b_{t+1}(g) \propto b_t(g) \cdot \pi(a_t \mid s_t, g, \hat\beta)^{\omega_t},
+\]
+where $\omega_t = 1/(1 + S_t/\tau)$ and $S_t$ is a CUSUM-style surprise accumulator:
+\[
+  S_t = \max\bigl(0,\; \gamma\, S_{t-1} + (-\!\log p_t(a_t) - \mu)\bigr),
+\]
+with $p_t(a_t) = \sum_g b_t(g)\,\pi(a_t \mid s_t, g, \hat\beta)$, $\mu{=}1.5$, $\gamma{=}0.9$, $\tau{=}3.0$.
+
+\textbf{Decision rule derivation.}
 The \textit{AskOrAct} decision is derived from Bayes-risk minimisation under a team-cost objective.
 Let $b_t$ be the posterior over candidate goals $\mathcal{G}$ at step $t$, and let $d^*(s, g)$ denote the obstacle-aware shortest-path distance computed via A* from state $s$ to goal $g$.
 
@@ -509,13 +486,6 @@ Extending the window to 10 shows diminishing returns at $K{=}3,4$ because the po
   \label{fig:gridworld}
 \end{figure}
 
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=\columnwidth]{setup_overview.png}
-  \caption{Task setup. The principal has a hidden goal; the assistant sees the world state, an ambiguous instruction, and the principal's movement. Questions collapse the posterior over candidate goals.}
-  \label{fig:setup_overview}
-\end{figure}
-
 \begin{table}[h]
 \centering
 \caption{Environment and policy hyperparameters.}
@@ -583,12 +553,7 @@ Answers follow a noisy channel: $P(\alpha \mid q, g) = (1{-}\eta)\,\mathbf{1}[\a
 \section{Policy Pseudocode}
 \label{app:pseudocode}
 
-\begin{figure}[h]
-  \centering
-  \includegraphics[width=\columnwidth]{ask_or_act_pipeline.png}
-  \caption{AskOrAct decision flow: instruction $\to$ posterior $\to$ observe + update $\to$ ASK or ACT. Dashed: answer feeds back.}
-  \label{fig:ask_or_act_pipeline}
-\end{figure}
+See Figure~\ref{fig:ask_or_act_pipeline} in the main text (\S\ref{sec:method_askoract}) for the decision flow.
 
 Algorithm~\ref{alg:askoract} gives pseudocode for the \textit{AskOrAct} policy.
 All baselines share the same act branch of greedy A* toward the MAP goal and differ only in their ask-gating condition.
@@ -636,6 +601,10 @@ POMCPPlanner & POMCP~\cite{silver2010pomcp} tree search, 250 iter, horizon 8 \\
 
 \section{Robustness Sweep Details}
 \label{app:robustness}
+
+\textbf{Sub-additive channel use.}
+Channel ablations of AskOrAct show a negative interaction of $I{=}-26 \pm 3$\,pp at $K{=}3$, indicating the policy extracts overlapping information from the two channels.
+Asking matters most when passive inference is structurally unable to resolve ambiguity, as shown by the $+22.6$\,pp gain in the full-aliasing regime.
 
 \begin{figure}[h]
   \centering
@@ -809,5 +778,13 @@ Under the Boltzmann policy, as $\beta \to \infty$ the action distribution concen
 The marginal $P(a)$ then equals $P(a \mid g)$, giving $I(\text{goal};\, a_1) = 0$.
 At finite $\beta$, sub-optimal actions may still carry residual goal information, but this can decrease with $\beta$ in the aliased case---contrary to the intuition that ``more rational = more informative.''
 Increasing $\beta$ therefore narrows the action distribution without increasing discriminative power, while reducing the sub-optimal-action diversity that could accidentally reveal intent.
+
+\section{Limitations and Future Work}
+\label{app:limitations}
+
+The question bank is fixed at 3 types, and open-ended questions would require a generative answer model.
+Scaling to larger environments would require particle-filter or amortised inference, and real principals may be non-stationary.
+The $\beta$ inverted-U and observation-hurts findings are regime-dependent, and quantitative thresholds are benchmark-specific.
+Future work could investigate failure-aware objectives, since the myopic surrogate does not price wrong picks, as well as adaptive $c_q$ and multi-step ask planning.
 
 \end{document}

@@ -12,8 +12,6 @@
 
 \definecolor{AskBlue}{RGB}{23,63,95}
 \definecolor{AskGold}{RGB}{214,137,16}
-\definecolor{AskSlate}{RGB}{70,78,92}
-\definecolor{AskTeal}{RGB}{34,139,134}
 \definecolor{AskRed}{RGB}{192,57,43}
 
 \usetheme{Madrid}
@@ -26,14 +24,13 @@
 \setbeamercolor{structure}{fg=AskBlue}
 \setbeamercolor{block title}{fg=white,bg=AskBlue}
 \setbeamercolor{block body}{fg=black,bg=black!4}
-\setbeamercolor{normal text}{fg=black,bg=white}
 \setbeamercolor{alerted text}{fg=AskGold}
 
 \setbeamerfont{title}{series=\bfseries,size=\large}
 \setbeamerfont{frametitle}{series=\bfseries,size=\large}
 
-\title[When More Observation Hurts]{When More Observation Hurts:\\Robust Clarification in Ask-or-Act Under Instruction Ambiguity}
-\subtitle{CS6208 Final Presentation \quad\textbar\quad 5-min solo talk}
+\title[When More Observation Hurts]{When More Observation Hurts:\\Redundancy and Robust Clarification in Ask-or-Act}
+\subtitle{CS6208 Final Presentation \quad\textbar\quad 5-min talk}
 \author[Zhu Yufan]{\texorpdfstring{Zhu Yufan \\ \small A0238993J}{Zhu Yufan (A0238993J)}}
 \date{April 2026}
 
@@ -42,154 +39,88 @@
 % =============================================================
 \begin{frame}[plain]
   \titlepage
-  \vspace{-1.0em}
-  \begin{center}
-    \footnotesize\itshape
-    A controlled benchmark for cost-aware clarification with both
-    passive (action observation) and active (typed questions) channels.
-  \end{center}
 \end{frame}
 
 % =============================================================
-\begin{frame}{The Question, and Why It Matters for Cooperative AI}
+\begin{frame}{Motivation and Setup}
   \begin{columns}[T,onlytextwidth]
-    \column{0.55\textwidth}
-      \begin{block}{Driving question}
-        A cooperative helper has \alert{two channels} for inferring a
-        principal's goal from an ambiguous instruction:
-        \begin{itemize}
-          \item \textbf{Passive} — watch the principal's actions (inverse planning).
-          \item \textbf{Active} — \alert{ask} a typed clarification at cost $c_q$.
-        \end{itemize}
-        \vspace{0.2em}
-        \emph{When should the assistant ask vs.\ act, and how do these
-        two channels of evidence interact?}
-      \end{block}
+    \column{0.50\textwidth}
+      \includegraphics[width=\textwidth]{setup_overview.png}
+      \vspace{0.3em}
       \begin{itemize}\small
-        \item Acting too early commits to the wrong goal.
-        \item Asking too often wastes time and frustrates the principal.
+        \item $9{\times}9$ two-room gridworld, $K$ candidate goals
+        \item Boltzmann principal ($\beta$, $\varepsilon$-noise)
+        \item 6 policies, 19{,}800 episodes, 95\% bootstrap CIs
       \end{itemize}
-    \column{0.42\textwidth}
-      \begin{block}{Why care (cooperative AI)}
+    \column{0.48\textwidth}
+      \begin{block}{The question}
         \small
-        Real assistants face exactly this trade-off — but prior work
-        studies one channel at a time:
-        \begin{itemize}\small
-          \item \textbf{CIRL} / \textbf{CLIPS}: passive inverse planning, no asking.
-          \item \textbf{ATD} / \textbf{ShootFirst}: clarification, no action evidence.
-        \end{itemize}
-        \vspace{0.2em}
-        \alert{No prior benchmark combines both channels under controlled ambiguity.}
-        We build the first one and use it to characterise channel
-        \emph{interaction}, not just to propose a new policy.
+        An assistant can infer the principal's goal by
+        \textbf{passively watching} actions or
+        \textbf{actively asking} at cost $c_q$.\\[0.4em]
+        \emph{How do these two channels interact --- and when does more observation hurt?}
+      \end{block}
+      \vspace{0.3em}
+      \begin{block}{Gap}
+        \small
+        Prior work (CLIPS, ATD, ShootFirst) studies each channel in isolation.
+        To our knowledge this is the \alert{first benchmark combining both}
+        under controlled ambiguity sweeps.
       \end{block}
   \end{columns}
 \end{frame}
 
 % =============================================================
-\begin{frame}{Setup and the AskOrAct Decision Rule}
+\begin{frame}{Finding 1 \& 2 --- Redundancy and Non-Monotonicity}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.48\textwidth}
+      \centering
+      \includegraphics[width=\textwidth,height=3.6cm,keepaspectratio]{synergy_decomposition.png}\\[0.3em]
+      \small\textbf{Channels are sub-additive} (in this setting)\\
+      $I{=}{-}26{\pm}3$\,pp at $K{=}3$.
+      Clarification matters most when passive inference is weak ---
+      \alert{$+22.6$\,pp} under full first-action aliasing.
+    \column{0.48\textwidth}
+      \centering
+      \includegraphics[width=\textwidth,height=3.6cm,keepaspectratio]{beta_inverted_u.png}\\[0.3em]
+      \small\textbf{Assistability is non-monotonic in $\beta$} (in our benchmark)\\
+      NeverAsk peaks at $\beta{=}8$ ($92\%$) then \alert{drops to $84\%$}
+      at $\beta{=}16$ as action diversity collapses.
+      AskOrAct detects this and asks more.
+  \end{columns}
+\end{frame}
+
+% =============================================================
+\begin{frame}{Finding 3 --- More Observation Can Hurt, and the Fix}
   \begin{columns}[T,onlytextwidth]
     \column{0.46\textwidth}
       \centering
-      \includegraphics[width=\textwidth]{setup_overview.png}\\[0.2em]
-      \scriptsize
-      $9{\times}9$ two-room gridworld, $K$ candidate goals share the
-      surface instruction, hidden true goal, Boltzmann principal
-      ($\beta,\varepsilon$).
+      \includegraphics[width=\textwidth,height=3.4cm,keepaspectratio]{obs_hurts_mismatch.png}\\[0.3em]
+      \small
+      Forced passive observation costs \alert{$-2.2$\,pp/step} under
+      $\beta$-mismatch vs.\ $-0.8$ matched.
+      Three decision-layer fixes all fail --- the bottleneck is
+      \alert{posterior quality}.
     \column{0.52\textwidth}
-      \begin{block}{Bayes-risk one-step lookahead}
+      \begin{block}{AskOrAct-ST: fix the posterior}
         \small
-        \[
-          C_{\text{Act}}(b_t) = \sum_{g} b_t(g)\,d^*(s_t, g)
-        \]
-        \[
-          C_{\text{Ask}}(q) = 1 + c_q + \mathbb{E}_\alpha\!\big[C_{\text{Act}}(b_{t,q,\alpha})\big]
-        \]
-        \[
-          \pi = \begin{cases}\mathrm{ask}(q^\star) & \min_q C_{\text{Ask}} < C_{\text{Act}}\\ \mathrm{act}(\hat g) & \text{otherwise}\end{cases}
-        \]
-      \end{block}
-      \vspace{-0.3em}
-      \begin{itemize}\small
-        \item \textbf{6 policies}: AskOrAct, NeverAsk, AlwaysAsk, InfoGainAsk, RandomAsk, POMCPPlanner.
-        \item \textbf{Sweep}: $K{\in}\{1{-}4\}$, $\varepsilon{\in}\{0,.05,.1\}$, $\beta{\in}\{1,2,4\}$, 5 seeds.
-        \item \textbf{Scale}: 19{,}800 episodes; 95\% bootstrap CIs.
-      \end{itemize}
-  \end{columns}
-\end{frame}
-
-% =============================================================
-\begin{frame}[shrink=5]{Three Diagnostic Findings (the Actual Contribution)}
-  \vspace{-0.3em}
-  \begin{center}
-    \footnotesize
-    \emph{Headline:} AskOrAct vs.\ NeverAsk \textbf{+7.9 pp} at $K{=}3$ and
-    \textbf{+8.4 pp} at $K{=}4$ with only $\sim$0.6 questions/ep.
-    The interesting story is \emph{why}.
-  \end{center}
-  \vspace{-0.2em}
-  \begin{columns}[T,onlytextwidth]
-    \column{0.32\textwidth}
-      \centering
-      \includegraphics[width=\textwidth,height=3.0cm,keepaspectratio]{synergy_decomposition.png}\\[0.1em]
-      \scriptsize\textbf{(1) Sub-additive channels.}\\
-      $I {=} {-}26 {\pm} 3$\,pp at $K{=}3$. The two channels share
-      information; clarification matters most when passive inference is
-      weak (\alert{$+22.6$\,pp} under full first-action aliasing).
-    \column{0.32\textwidth}
-      \centering
-      \includegraphics[width=\textwidth,height=3.0cm,keepaspectratio]{beta_inverted_u.png}\\[0.1em]
-      \scriptsize\textbf{(2) Non-monotonic in $\beta$.}\\
-      NeverAsk peaks at $\beta{=}8$ ($92\%$) and \alert{drops to $84\%$}
-      at $\beta{=}16$: extreme rationality collapses action diversity
-      and hides intent. AskOrAct detects this and asks more.
-    \column{0.32\textwidth}
-      \centering
-      \includegraphics[width=\textwidth,height=3.0cm,keepaspectratio]{obs_hurts_mismatch.png}\\[0.1em]
-      \scriptsize\textbf{(3) More observation can hurt.}\\
-      Forced observation costs $-0.8$\,pp/step matched but
-      \alert{$-2.2$\,pp/step} under $\beta$-mismatch — passive evidence
-      \emph{poisons} the posterior.
-  \end{columns}
-\end{frame}
-
-% =============================================================
-\begin{frame}{Robust Clarification + Takeaways}
-  \begin{columns}[T,onlytextwidth]
-    \column{0.55\textwidth}
-      \begin{block}{Fixing finding (3): AskOrAct-ST}
-        \small
-        Three \emph{decision-layer} fixes (overlap gate, lookahead,
-        hard observation cap) all \textbf{failed} ($-1$ to $-5$\,pp).
-        $\Rightarrow$ the bottleneck is \alert{posterior quality},
-        not the ask-or-act gate.
-
-        \vspace{0.3em}
-        \textbf{AskOrAct-ST} adds \emph{surprise-tempered} Bayes updates:
-        down-weight observations whose likelihood is much lower than
-        the model expects.
+        Temper passive updates by $\omega_t \in (0,1]$ from a
+        CUSUM surprise accumulator.
+        Down-weight observations that are unlikely under the assumed model.
         \begin{itemize}\small
-          \item Matched models: \textbf{$+0.0 \pm 1.6$\,pp} (no harm).
-          \item Mismatched ($\beta_{\text{true}}{=}1$): \alert{$+1$ to $+5$\,pp}.
+          \item Matched: $+0.0 \pm 1.6$\,pp (no harm)
+          \item Mismatched ($\beta_{\text{true}}{=}1$): \alert{$+1$--$+5$\,pp}
         \end{itemize}
       \end{block}
-    \column{0.43\textwidth}
-      \begin{block}{Takeaways}
+      \vspace{0.4em}
+      \begin{block}{Three takeaways}
         \small
         \begin{enumerate}
-          \item Passive + active are \textbf{sub-additive} — design
-            ask-policies to exploit channel \emph{redundancy}, not stack them.
-          \item Assistability is \textbf{non-monotonic} in principal
-            rationality; cost-aware asking is the corrective.
+          \item Channels are sub-additive --- exploit redundancy, don't stack.
+          \item Rationality can \emph{hurt} passive inference.
           \item Under mismatch, fix the \textbf{posterior}, not the gate.
         \end{enumerate}
       \end{block}
-      \vspace{0.2em}
-      {\scriptsize
-      \textbf{Code:} \texttt{github.com/Yufannnn/AskOrAct}\\[0.2em]
-      \textbf{AI declaration:} Claude Sonnet 4.6 was used for coding,
-      debugging, LaTeX editing, and figure generation throughout. I am
-      responsible for all research decisions and content.}
   \end{columns}
 \end{frame}
 
