@@ -1,29 +1,35 @@
-# Venv
+# Virtualenvs
 .venv/
 venv/
 env/
 
-# Results (optional; uncomment to keep CSV/plots in git)
-# results/
-
-# Python
+# Python caches
 __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
 
-# IDE
+# IDE / editor
 .idea/
 .vscode/
 *.swp
+.DS_Store
 
-# LaTeX build artifacts
-CS6208_Project/*.aux
-CS6208_Project/*.bbl
-CS6208_Project/*.blg
-CS6208_Project/*.fdb_latexmk
-CS6208_Project/*.fls
-CS6208_Project/*.log
-CS6208_Project/*.out
-CS6208_Project/*.synctex.gz
+# LaTeX build artefacts (match anywhere under docs/)
+**/*.aux
+**/*.bbl
+**/*.blg
+**/*.fdb_latexmk
+**/*.fls
+**/*.log
+**/*.out
+**/*.synctex.gz
+**/*.toc
+**/*.nav
+**/*.snm
+**/*.vrb
+
+# Legacy submission packaging
+results/submission_package/
+results/submission_package.zip

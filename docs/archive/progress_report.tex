@@ -1,0 +1,142 @@
+\documentclass[10pt,twocolumn]{article}
+
+\usepackage[margin=0.72in]{geometry}
+\usepackage{times}
+\usepackage{microtype}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[hidelinks]{hyperref}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\graphicspath{{../results/}}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\setlength{\columnsep}{0.25in}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+
+\begin{document}
+
+\begin{center}
+{\Large \textbf{CS6208 Progress Report}}\\
+\vspace{2pt}
+{\large \textbf{Ask or Act for Cooperative Assistance via Inverse Planning}}\\
+\vspace{4pt}
+\textbf{Team member:} Zhu Yufan \; A0238993J \quad \textit{March 13, 2026}
+\end{center}
+
+\vspace{-4pt}
+
+\section*{What Has Been Done}
+
+All milestones through March 13 are complete.
+We implement a cooperative $9{\times}9$ two-room gridworld where a principal holds a hidden goal object and issues a short, potentially ambiguous instruction that maps to $K \in \{1,2,3,4\}$ candidate goals.
+The principal acts according to a Boltzmann policy with rationality $\beta$ and noise $\varepsilon$~\cite{baker2009,jara2016}; the assistant observes states and principal actions but not the true goal.
+
+The assistant maintains a Bayesian posterior $b(g)$ over candidate goals, initialised from the instruction template and updated from observed actions via an inverse-planning likelihood.
+At each step it compares the expected team cost of acting immediately versus asking the best available clarifying question:
+\begin{align*}
+  \text{CostAsk}(q) &= 1 + c_q + \mathbb{E}_{a|q}[V(s,b_{q,a})], \\
+  \text{CostAct}    &= 1 + V(s,b,g^*),
+\end{align*}
+where $c_q{=}0.5$ is the question cost, $b_{q,a}$ is the posterior after answer $a$, and $V$ is the expected BFS distance to the MAP goal~\cite{hadfield2016cirl,tan2024clips}.
+This is a one-step value-of-information (VoI) decision rule.
+
+Seven policies were implemented and evaluated: \textit{AskOrAct} (VoI), \textit{NeverAsk}, \textit{AlwaysAsk}, \textit{InfoGainAsk}, \textit{EasyInfoGainAsk}, \textit{RandomAsk}, and \textit{POMCPPlanner} (a POMDP tree-search baseline).
+The question bank contains three question types: ask color, ask room, and ask object type, with per-type answer noise (0.05, 0.10, 0.20).
+
+A full evaluation sweep was conducted over $\varepsilon \in \{0, 0.05, 0.1\}$, $\beta \in \{1, 2, 4\}$, 5 replicate seeds $\times$ 20 episodes per condition (100 episodes per cell, 19{,}800 total), with 95\% bootstrap confidence intervals.
+Additional experiments include: ablations over question cost, wrong-pick failure mode, and episode deadline margin; robustness sweeps over answer noise and principal $\beta$-mismatch; held-out instruction template generalization; and a scale-$K$ stress test with $K \in \{5, 6\}$.
+
+\textbf{Bug discovered and fixed.}
+During evaluation, \textit{AskOrAct} produced results identical to \textit{NeverAsk} at $K{=}2$, asking zero questions across all episodes.
+The root cause was \texttt{ENTROPY\_GATE = 0.8}: the policy skips the ask branch when $H(b) \leq \texttt{ENTROPY\_GATE}$, but the uniform prior over $K{=}2$ goals has entropy $\ln 2 \approx 0.693 < 0.8$, so the gate fired at every step.
+After reducing the threshold to 0.3 (below $\ln 2$ but above the near-certain regime), \textit{AskOrAct} achieves 97\% success vs.\ 85\% for \textit{NeverAsk} at $K{=}2$, $\varepsilon{=}0$, $\beta{=}1$.
+Three additional minor bugs were fixed: a NaN guard for unreachable goal positions, a degenerate-episode sentinel, and a warning for unregistered question IDs.
+
+\section*{Preliminary Findings}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\columnwidth]{main_dashboard.png}
+  \caption{Main evaluation dashboard (100 ep/cell; error bars = 95\% CI). Top: success rate. Middle: regret. Bottom: questions asked per episode.}
+  \label{fig:main}
+\end{figure}
+
+Figure~\ref{fig:main} and Tables~\ref{tab:k3}--\ref{tab:k2} summarise the key results.
+At $K{=}1$ (no ambiguity) all policies are equivalent — a sanity check confirming correct implementation.
+At $K \geq 3$ instruction ambiguity becomes genuine and policies diverge substantially.
+
+\textit{AskOrAct} outperforms \textit{NeverAsk} with statistical significance at both high-ambiguity levels: $+7.9$\,pp at $K{=}3$ (95\% CI $[5.0, 10.8]$) and $+8.4$\,pp at $K{=}4$ (95\% CI $[5.1, 12.1]$), while asking only 0.6--0.7 questions per episode on average.
+Both confidence intervals exclude zero, confirming the effect is not due to sampling noise.
+\textit{AlwaysAsk} asks 3--4$\times$ more per episode but achieves similar or lower success and $+2.1$ higher regret at $K{=}4$, confirming that over-asking is costly.
+
+\begin{table}[h]
+  \centering\small
+  \caption{Results at $K{=}3$, $\varepsilon{=}0$, $\beta{=}1$ (100 episodes).}
+  \label{tab:k3}
+  \begin{tabular}{lccc}
+    \toprule
+    Policy & Success & Avg Q & Regret \\
+    \midrule
+    \textit{AskOrAct}    & \textbf{90\%} & 0.74 & \textbf{2.19} \\
+    \textit{NeverAsk}    & 76\%          & 0.00 & 2.51 \\
+    \textit{InfoGainAsk} & 93\%          & 1.25 & 2.58 \\
+    \textit{AlwaysAsk}   & 87\%          & 2.41 & 4.14 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[h]
+  \centering\small
+  \caption{$K{=}2$, $\varepsilon{=}0$, $\beta{=}1$, post entropy-gate fix (100 ep.).}
+  \label{tab:k2}
+  \begin{tabular}{lccc}
+    \toprule
+    Policy & Success & Avg Q & Regret \\
+    \midrule
+    \textit{AskOrAct}    & \textbf{97\%} & 0.71 & \textbf{1.84} \\
+    \textit{NeverAsk}    & 85\%          & 0.00 & 2.16 \\
+    \textit{InfoGainAsk} & 95\%          & 1.04 & 2.44 \\
+    \textit{AlwaysAsk}   & 91\%          & 1.97 & 3.67 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Robustness (positive and negative findings).}
+Answer-noise sweeps show the \textit{AskOrAct} advantage holds at $K{=}4$ across all noise levels ($+4$--$+9$\,pp), but reverses briefly at $K{=}3$, noise$\,{=}\,0.1$ (92.0\% vs.\ 94.0\% for \textit{NeverAsk}) — noisy answers can mislead the posterior.
+Under principal model mismatch, \textit{AskOrAct} retains $+13.5$\,pp even when the principal acts near-randomly ($\beta_{\text{true}}{=}1$ vs.\ $\hat\beta{=}2$).
+The ablation confirms a non-zero question cost is essential: $c_q{=}0$ causes over-asking (1.61 vs.\ 0.65 q/ep) and reduces success from 73.8\% to 69.2\%.
+On the success--regret Pareto frontier at $K{=}4$, \textit{AskOrAct} is efficient: it dominates \textit{NeverAsk} in success and \textit{AlwaysAsk}/\textit{RandomAsk} in regret.
+
+\section*{Key Plot Description for Final Report}
+
+\textbf{Figure~\ref{fig:main}} is the central result figure.
+The horizontal axis is ambiguity level $K \in \{1,2,3,4\}$; three stacked panels show (top) success rate, (middle) regret, and (bottom) average questions per episode, with 95\% CI error bars.
+Readers see: (a) all policies tie at $K{=}1$ (sanity check); (b) the success gap between \textit{AskOrAct} and \textit{NeverAsk} widens with ambiguity; (c) \textit{AlwaysAsk}/\textit{RandomAsk} ask far more questions without a commensurate gain.
+
+An \textbf{aggregate delta table} (planned for final report) will have rows $K \in \{2,3,4\}$ and columns $\Delta$Success (\textit{AskOrAct}$-$\textit{NeverAsk}) with 95\% CI, and $\Delta$Regret (\textit{AskOrAct}$-$\textit{AlwaysAsk}) with questions/ep, letting readers see at a glance which improvements are statistically significant and at what asking cost.
+
+\section*{Plan for Remaining Time}
+
+\textbf{Step 1 --- Failure-mode analysis} (\textit{by March 21}).
+Break down timeout vs.\ wrong-pick failures per $(K,\varepsilon,\beta)$ for all policies.
+Pinpoint conditions where \textit{AskOrAct} regresses (notably $K{=}3$, noise$\,{=}\,0.1$) and determine whether failures stem from posterior misdirection, exhausted question budget, or an overly restrictive ask window.
+
+\textbf{Step 2 --- Final report} (\textit{by April 3}).
+Write the 4-page paper covering introduction, related work, method (posterior update, VoI rule, gating), experiments (aggregate tables, delta-CI analysis), ablations, robustness, and conclusion.
+
+\textbf{Step 3 --- Presentation} (\textit{by April 8}).
+Prepare 14 slides with backup slides for likely Q\&A topics (entropy gate sensitivity, question cost ablation, scalability to $K{>}4$).
+
+\textbf{Step 4 --- Submission package} (\textit{by April 10}).
+Run \texttt{./run.sh package} to produce \texttt{submission\_package.zip} with all CSVs, plots, PDFs, and a \texttt{REPRODUCE.txt} with checksums for all seven output files to enable full reproduction.
+
+\section*{AI Tool Declaration}
+I used Claude Sonnet 4.6 (Anthropic) for coding assistance, debugging, and text editing throughout the project.
+I am responsible for all research decisions, experimental design, and the content of this report.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

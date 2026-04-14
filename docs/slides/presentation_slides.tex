@@ -1,0 +1,196 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{xcolor}
+
+\graphicspath{{../../results/figures/paper/}{../../results/figures/exploratory/}}
+
+\definecolor{AskBlue}{RGB}{23,63,95}
+\definecolor{AskGold}{RGB}{214,137,16}
+\definecolor{AskSlate}{RGB}{70,78,92}
+\definecolor{AskTeal}{RGB}{34,139,134}
+\definecolor{AskRed}{RGB}{192,57,43}
+
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+
+\setbeamercolor{title}{fg=white,bg=AskBlue}
+\setbeamercolor{frametitle}{fg=white,bg=AskBlue}
+\setbeamercolor{structure}{fg=AskBlue}
+\setbeamercolor{block title}{fg=white,bg=AskBlue}
+\setbeamercolor{block body}{fg=black,bg=black!4}
+\setbeamercolor{normal text}{fg=black,bg=white}
+\setbeamercolor{alerted text}{fg=AskGold}
+
+\setbeamerfont{title}{series=\bfseries,size=\large}
+\setbeamerfont{frametitle}{series=\bfseries,size=\large}
+
+\title[When More Observation Hurts]{When More Observation Hurts:\\Robust Clarification in Ask-or-Act Under Instruction Ambiguity}
+\subtitle{CS6208 Final Presentation \quad\textbar\quad 5-min solo talk}
+\author[Zhu Yufan]{\texorpdfstring{Zhu Yufan \\ \small A0238993J}{Zhu Yufan (A0238993J)}}
+\date{April 2026}
+
+\begin{document}
+
+% =============================================================
+\begin{frame}[plain]
+  \titlepage
+  \vspace{-1.0em}
+  \begin{center}
+    \footnotesize\itshape
+    A controlled benchmark for cost-aware clarification with both
+    passive (action observation) and active (typed questions) channels.
+  \end{center}
+\end{frame}
+
+% =============================================================
+\begin{frame}{The Question, and Why It Matters for Cooperative AI}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.55\textwidth}
+      \begin{block}{Driving question}
+        A cooperative helper has \alert{two channels} for inferring a
+        principal's goal from an ambiguous instruction:
+        \begin{itemize}
+          \item \textbf{Passive} — watch the principal's actions (inverse planning).
+          \item \textbf{Active} — \alert{ask} a typed clarification at cost $c_q$.
+        \end{itemize}
+        \vspace{0.2em}
+        \emph{When should the assistant ask vs.\ act, and how do these
+        two channels of evidence interact?}
+      \end{block}
+      \begin{itemize}\small
+        \item Acting too early commits to the wrong goal.
+        \item Asking too often wastes time and frustrates the principal.
+      \end{itemize}
+    \column{0.42\textwidth}
+      \begin{block}{Why care (cooperative AI)}
+        \small
+        Real assistants face exactly this trade-off — but prior work
+        studies one channel at a time:
+        \begin{itemize}\small
+          \item \textbf{CIRL} / \textbf{CLIPS}: passive inverse planning, no asking.
+          \item \textbf{ATD} / \textbf{ShootFirst}: clarification, no action evidence.
+        \end{itemize}
+        \vspace{0.2em}
+        \alert{No prior benchmark combines both channels under controlled ambiguity.}
+        We build the first one and use it to characterise channel
+        \emph{interaction}, not just to propose a new policy.
+      \end{block}
+  \end{columns}
+\end{frame}
+
+% =============================================================
+\begin{frame}{Setup and the AskOrAct Decision Rule}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.46\textwidth}
+      \centering
+      \includegraphics[width=\textwidth]{setup_overview.png}\\[0.2em]
+      \scriptsize
+      $9{\times}9$ two-room gridworld, $K$ candidate goals share the
+      surface instruction, hidden true goal, Boltzmann principal
+      ($\beta,\varepsilon$).
+    \column{0.52\textwidth}
+      \begin{block}{Bayes-risk one-step lookahead}
+        \small
+        \[
+          C_{\text{Act}}(b_t) = \sum_{g} b_t(g)\,d^*(s_t, g)
+        \]
+        \[
+          C_{\text{Ask}}(q) = 1 + c_q + \mathbb{E}_\alpha\!\big[C_{\text{Act}}(b_{t,q,\alpha})\big]
+        \]
+        \[
+          \pi = \begin{cases}\mathrm{ask}(q^\star) & \min_q C_{\text{Ask}} < C_{\text{Act}}\\ \mathrm{act}(\hat g) & \text{otherwise}\end{cases}
+        \]
+      \end{block}
+      \vspace{-0.3em}
+      \begin{itemize}\small
+        \item \textbf{6 policies}: AskOrAct, NeverAsk, AlwaysAsk, InfoGainAsk, RandomAsk, POMCPPlanner.
+        \item \textbf{Sweep}: $K{\in}\{1{-}4\}$, $\varepsilon{\in}\{0,.05,.1\}$, $\beta{\in}\{1,2,4\}$, 5 seeds.
+        \item \textbf{Scale}: 19{,}800 episodes; 95\% bootstrap CIs.
+      \end{itemize}
+  \end{columns}
+\end{frame}
+
+% =============================================================
+\begin{frame}[shrink=5]{Three Diagnostic Findings (the Actual Contribution)}
+  \vspace{-0.3em}
+  \begin{center}
+    \footnotesize
+    \emph{Headline:} AskOrAct vs.\ NeverAsk \textbf{+7.9 pp} at $K{=}3$ and
+    \textbf{+8.4 pp} at $K{=}4$ with only $\sim$0.6 questions/ep.
+    The interesting story is \emph{why}.
+  \end{center}
+  \vspace{-0.2em}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.32\textwidth}
+      \centering
+      \includegraphics[width=\textwidth,height=3.0cm,keepaspectratio]{synergy_decomposition.png}\\[0.1em]
+      \scriptsize\textbf{(1) Sub-additive channels.}\\
+      $I {=} {-}26 {\pm} 3$\,pp at $K{=}3$. The two channels share
+      information; clarification matters most when passive inference is
+      weak (\alert{$+22.6$\,pp} under full first-action aliasing).
+    \column{0.32\textwidth}
+      \centering
+      \includegraphics[width=\textwidth,height=3.0cm,keepaspectratio]{beta_inverted_u.png}\\[0.1em]
+      \scriptsize\textbf{(2) Non-monotonic in $\beta$.}\\
+      NeverAsk peaks at $\beta{=}8$ ($92\%$) and \alert{drops to $84\%$}
+      at $\beta{=}16$: extreme rationality collapses action diversity
+      and hides intent. AskOrAct detects this and asks more.
+    \column{0.32\textwidth}
+      \centering
+      \includegraphics[width=\textwidth,height=3.0cm,keepaspectratio]{obs_hurts_mismatch.png}\\[0.1em]
+      \scriptsize\textbf{(3) More observation can hurt.}\\
+      Forced observation costs $-0.8$\,pp/step matched but
+      \alert{$-2.2$\,pp/step} under $\beta$-mismatch — passive evidence
+      \emph{poisons} the posterior.
+  \end{columns}
+\end{frame}
+
+% =============================================================
+\begin{frame}{Robust Clarification + Takeaways}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.55\textwidth}
+      \begin{block}{Fixing finding (3): AskOrAct-ST}
+        \small
+        Three \emph{decision-layer} fixes (overlap gate, lookahead,
+        hard observation cap) all \textbf{failed} ($-1$ to $-5$\,pp).
+        $\Rightarrow$ the bottleneck is \alert{posterior quality},
+        not the ask-or-act gate.
+
+        \vspace{0.3em}
+        \textbf{AskOrAct-ST} adds \emph{surprise-tempered} Bayes updates:
+        down-weight observations whose likelihood is much lower than
+        the model expects.
+        \begin{itemize}\small
+          \item Matched models: \textbf{$+0.0 \pm 1.6$\,pp} (no harm).
+          \item Mismatched ($\beta_{\text{true}}{=}1$): \alert{$+1$ to $+5$\,pp}.
+        \end{itemize}
+      \end{block}
+    \column{0.43\textwidth}
+      \begin{block}{Takeaways}
+        \small
+        \begin{enumerate}
+          \item Passive + active are \textbf{sub-additive} — design
+            ask-policies to exploit channel \emph{redundancy}, not stack them.
+          \item Assistability is \textbf{non-monotonic} in principal
+            rationality; cost-aware asking is the corrective.
+          \item Under mismatch, fix the \textbf{posterior}, not the gate.
+        \end{enumerate}
+      \end{block}
+      \vspace{0.2em}
+      {\scriptsize
+      \textbf{Code:} \texttt{github.com/Yufannnn/AskOrAct}\\[0.2em]
+      \textbf{AI declaration:} Claude Sonnet 4.6 was used for coding,
+      debugging, LaTeX editing, and figure generation throughout. I am
+      responsible for all research decisions and content.}
+  \end{columns}
+\end{frame}
+
+\end{document}

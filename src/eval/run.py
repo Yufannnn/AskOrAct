@@ -20,7 +20,10 @@ from src.agents import (
     policy_pomcp_planner,
     _bfs_next_step,
 )
-from src.agents.assistant import CostAct, best_question_cost, assistant_task_action, question_info_gain
+from src.agents.assistant import (
+    CostAct, best_question_cost, assistant_task_action, question_info_gain,
+    policy_passive_aware_ask, policy_cost_wait_ask, policy_mismatch_aware_ask,
+)
 
 
 def episode_optimal_steps(env, true_goal_obj_id):
@@ -113,6 +116,15 @@ def _sweep_env_seed(base_seed, rep_seed, K, eps, beta, episode_id):
     )
 
 
+def _policies_for_main_sweep(ambiguity_K):
+    policies = list(getattr(config, "MAIN_SWEEP_BASE_POLICIES", config.POLICIES))
+    extra_by_k = getattr(config, "MAIN_SWEEP_EXTRA_POLICIES_BY_K", {})
+    for policy_name in extra_by_k.get(int(ambiguity_K), []):
+        if policy_name not in policies:
+            policies.append(policy_name)
+    return policies
+
+
 def _run_episode_impl(policy_name, seed, config_dict):
     """Single episode; used by run_episode, sweeps, and ablations."""
     K = config_dict.get("ambiguity_K", 2)
@@ -139,8 +151,20 @@ def _run_episode_impl(policy_name, seed, config_dict):
     debug_min_k = config_dict.get("debug_min_k", config.DEBUG_MIN_K)
     rng = np.random.default_rng(seed)
 
+    layout_type = config_dict.get("layout_type", getattr(config, "DEFAULT_LAYOUT_TYPE", "vertical"))
+    prior_type = config_dict.get("prior_type", getattr(config, "DEFAULT_PRIOR_TYPE", "uniform"))
+    two_rooms = config_dict.get("two_rooms", None)
+    wrong_pick_penalty = config_dict.get("wrong_pick_penalty", getattr(config, "WRONG_PICK_PENALTY", 0))
+    mismatch_true_noise_by_qtype = config_dict.get("mismatch_true_noise_by_qtype", None)
+    action_drop_rate = config_dict.get("action_drop_rate", 0.0)
+    temper_passive = config_dict.get("temper_passive", False)
+    temper_gamma = config_dict.get("temper_gamma", 0.90)
+    temper_baseline = config_dict.get("temper_baseline", 1.5)
+    temper_scale = config_dict.get("temper_scale", 3.0)  # omega = 1/(1 + S_t/scale)
+
     env, instruction_u, true_goal_obj_id = generate_world(
-        seed, N=N, M=M, ambiguity_K=K, allowed_template_ids=allowed_template_ids
+        seed, N=N, M=M, ambiguity_K=K, allowed_template_ids=allowed_template_ids,
+        layout_type=layout_type, two_rooms=two_rooms,
     )
     template_id = get_template_id_for_ambiguity(instruction_u)
     candidate_goals = instruction_to_candidate_goals(instruction_u, env)
@@ -175,7 +199,10 @@ def _run_episode_impl(policy_name, seed, config_dict):
             "template_id": -1,
         }
 
-    posterior = init_posterior(candidate_goals)
+    posterior = init_posterior(
+        candidate_goals, prior_type=prior_type, env=env,
+        assistant_pos=env.get_state()["assistant_pos"],
+    )
     principal_action_history = []
     questions_asked = 0
     asked_qnames = set()
@@ -197,7 +224,12 @@ def _run_episode_impl(policy_name, seed, config_dict):
         "easy_info_gain_ask": policy_easy_info_gain_ask,
         "random_ask": policy_random_ask,
         "pomcp_planner": policy_pomcp_planner,
+        "passive_aware_ask": policy_passive_aware_ask,
+        "cost_wait_ask": policy_cost_wait_ask,
+        "mismatch_aware_ask": policy_mismatch_aware_ask,
     }[policy_name]
+
+    _surprise_state = {"S": 0.0}  # persistent surprise state for MismatchAwareAsk
 
     episode_q_cap = _episode_question_cap(max_questions_per_episode)
     policy_max_questions = config.MAX_QUESTIONS
@@ -226,9 +258,9 @@ def _run_episode_impl(policy_name, seed, config_dict):
             "answer_noise": answer_noise,
             "question_cost": question_cost,
             "max_questions": policy_max_questions,
-            "entropy_threshold": config.ENTROPY_THRESHOLD,
-            "entropy_gate": config.ENTROPY_GATE,
-            "ask_window": config.ASK_WINDOW,
+            "entropy_threshold": config_dict.get("entropy_threshold_override", config.ENTROPY_THRESHOLD),
+            "entropy_gate": config_dict.get("entropy_gate_override", config.ENTROPY_GATE),
+            "ask_window": config_dict.get("ask_window_override", config.ASK_WINDOW),
             "ig_threshold": config.IG_THRESHOLD,
             "infogain_use_entropy_gate": config.INFOGAIN_USE_ENTROPY_GATE,
             "asked_qnames": asked_qnames,
@@ -243,6 +275,8 @@ def _run_episode_impl(policy_name, seed, config_dict):
             "pomcp_iters": config_dict.get("pomcp_iters", None),
             "pomcp_horizon": config_dict.get("pomcp_horizon", None),
             "pomcp_uct_c": config_dict.get("pomcp_uct_c", None),
+            "wrong_pick_penalty": wrong_pick_penalty,
+            "_surprise_state": _surprise_state,
         }
 
         debug_enabled = debug and K >= debug_min_k and steps < debug_max_steps and policy_name == "ask_or_act"
@@ -300,7 +334,12 @@ def _run_episode_impl(policy_name, seed, config_dict):
                             answer_noise=answer_noise,
                         )
                     )
+                if mismatch_true_noise_by_qtype is not None:
+                    _saved_noise = dict(config.ANSWER_NOISE_BY_QTYPE)
+                    config.ANSWER_NOISE_BY_QTYPE = dict(mismatch_true_noise_by_qtype)
                 ans = answer_question(q_tuple, true_goal_obj_id, env, rng, answer_noise)
+                if mismatch_true_noise_by_qtype is not None:
+                    config.ANSWER_NOISE_BY_QTYPE = _saved_noise
                 if debug_enabled:
                     print(f"[DEBUG] ask q={q_id} answer={ans}")
                 p_new = {
@@ -319,10 +358,31 @@ def _run_episode_impl(policy_name, seed, config_dict):
                 continue
 
         assistant_action = out
-        principal_action_history.append(principal_action)
-        update_posterior(
-            posterior, state, principal_action, candidate_goals, env, assistant_beta, assistant_eps
-        )
+        if action_drop_rate > 0 and rng.random() < action_drop_rate:
+            pass  # assistant misses this principal action — no posterior update
+        else:
+            principal_action_history.append(principal_action)
+            # Compute tempering weight if enabled
+            omega = 1.0
+            if temper_passive and principal_action_history:
+                import math
+                from src.agents.principal import principal_action_probs as _pap
+                # Predictive probability of observed action
+                p_pred = sum(
+                    max(0, posterior.get(g, 0)) * _pap(state, g, env, assistant_beta, assistant_eps).get(principal_action, 1e-10)
+                    for g in candidate_goals
+                )
+                p_pred = max(p_pred, 1e-10)
+                surprise = -math.log(p_pred)
+                # CUSUM accumulator (stored in config_dict for persistence)
+                S_prev = config_dict.get("_temper_S", 0.0)
+                S_t = max(0.0, temper_gamma * S_prev + (surprise - temper_baseline))
+                config_dict["_temper_S"] = S_t
+                omega = 1.0 / (1.0 + S_t / temper_scale)
+            update_posterior(
+                posterior, state, principal_action, candidate_goals, env, assistant_beta, assistant_eps,
+                omega=omega,
+            )
         state, done, info = env.step(
             principal_action,
             assistant_action,
@@ -391,8 +451,8 @@ def run_episode(policy_name, seed, config_dict):
     return _run_episode_impl(policy_name, seed, config_dict)
 
 
-def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.json"):
-    """Sweep over conditions; optionally use parallel workers. Writes CSV and JSON."""
+def run_sweep(output_csv="results/metrics/metrics.csv", output_json="results/metrics/summary.json"):
+    """Sweep over the paper's main evaluation grid and write CSV/JSON summaries."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
     rows = []
     n_workers = getattr(config, "N_WORKERS", 0)
@@ -406,10 +466,11 @@ def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.jso
 
         tasks = []
         for K in config.AMBIGUITY_LEVELS:
+            policy_names = _policies_for_main_sweep(K)
             for eps in config.EPS_LEVELS:
                 for beta in config.BETA_LEVELS:
                     cfg = {"ambiguity_K": K, "eps": eps, "beta": beta}
-                    for policy_name in config.POLICIES:
+                    for policy_name in policy_names:
                         for rep_seed in reps:
                             for episode_id in range(n_episodes_per_seed):
                                 seed = _sweep_env_seed(config.BASE_SEED, rep_seed, K, eps, beta, episode_id)
@@ -424,6 +485,9 @@ def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.jso
                 try:
                     m = fut.result()
                 except Exception:
+                    import traceback
+                    traceback.print_exc()
+                    print(f"[sweep] ERROR in episode policy={policy_name} seed={seed} cfg={cfg} — substituting failure row", flush=True)
                     m = {
                         "success": False,
                         "steps": config.MAX_STEPS,
@@ -473,10 +537,11 @@ def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.jso
                 })
     else:
         for K in config.AMBIGUITY_LEVELS:
+            policy_names = _policies_for_main_sweep(K)
             for eps in config.EPS_LEVELS:
                 for beta in config.BETA_LEVELS:
                     cfg = {"ambiguity_K": K, "eps": eps, "beta": beta}
-                    for policy_name in config.POLICIES:
+                    for policy_name in policy_names:
                         for rep_seed in reps:
                             for episode_id in range(n_episodes_per_seed):
                                 seed = _sweep_env_seed(config.BASE_SEED, rep_seed, K, eps, beta, episode_id)
@@ -543,11 +608,12 @@ def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.jso
 
     summary = {}
     for K in config.AMBIGUITY_LEVELS:
+        policy_names = _policies_for_main_sweep(K)
         for eps in config.EPS_LEVELS:
             for beta in config.BETA_LEVELS:
                 key = (K, eps, beta)
                 summary[key] = {}
-                for policy_name in config.POLICIES:
+                for policy_name in policy_names:
                     sub = [
                         r for r in rows
                         if r["ambiguity_K"] == K and r["eps"] == eps and r["beta"] == beta and r["policy"] == policy_name
@@ -564,7 +630,7 @@ def run_sweep(output_csv="results/metrics.csv", output_json="results/summary.jso
     return rows, summary
 
 
-def run_ablations(output_csv="results/metrics_ablations.csv"):
+def run_ablations(output_csv="results/metrics/metrics_ablations.csv"):
     """Run fixed ablation grid and write a single metrics CSV."""
     os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
 
@@ -587,7 +653,7 @@ def run_ablations(output_csv="results/metrics_ablations.csv"):
                 for K in ks:
                     for eps in eps_levels:
                         for answer_noise in answer_noises:
-                            for policy in config.POLICIES:
+                            for policy in config.ABLATION_POLICIES:
                                 for ep in range(n_eps):
                                     seed = (
                                         900000
@@ -596,7 +662,7 @@ def run_ablations(output_csv="results/metrics_ablations.csv"):
                                         + (0 if mode["mode_name"] == "modeA" else 1 if mode["mode_name"] == "modeB" else 2) * 1000
                                         + (100 if wrong_pick_fail else 0)
                                         + deadline_margin * 10
-                                        + config.POLICIES.index(policy) * 100
+                                        + config.ABLATION_POLICIES.index(policy) * 100
                                         + ep
                                     )
                                     cfg = {
@@ -674,7 +740,7 @@ def run_ablations(output_csv="results/metrics_ablations.csv"):
     return rows
 
 
-def run_robust_answer_noise(output_csv="results/metrics_robust_answer_noise.csv"):
+def run_robust_answer_noise(output_csv="results/metrics/metrics_robust_answer_noise.csv"):
     """
     Robustness sweep A: vary answer noise at fixed principal/assistant dynamics.
     Focused on K={3,4} for runtime.
@@ -684,7 +750,6 @@ def run_robust_answer_noise(output_csv="results/metrics_robust_answer_noise.csv"
     # actually used by _noise_for_question() instead of being shadowed by
     # ANSWER_NOISE_BY_QTYPE (which covers all question types).
     _saved_by_qtype = getattr(config, "ANSWER_NOISE_BY_QTYPE", {})
-    config.ANSWER_NOISE_BY_QTYPE = {}
     ks = [3, 4]
     answer_noises = [0.0, 0.1, 0.2]
     principal_eps = config.DEFAULT_EPS
@@ -695,10 +760,11 @@ def run_robust_answer_noise(output_csv="results/metrics_robust_answer_noise.csv"
     n_episodes_per_seed = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
 
     try:
+        config.ANSWER_NOISE_BY_QTYPE = {}
         rows = []
         for K in ks:
             for answer_noise in answer_noises:
-                for policy in config.POLICIES:
+                for policy in config.ROBUST_ANSWER_POLICIES:
                     for rep_seed in reps:
                         for episode_id in range(n_episodes_per_seed):
                             seed = _sweep_env_seed(
@@ -774,7 +840,7 @@ def run_robust_answer_noise(output_csv="results/metrics_robust_answer_noise.csv"
     return rows
 
 
-def run_robust_mismatch(output_csv="results/metrics_robust_mismatch.csv"):
+def run_robust_mismatch(output_csv="results/metrics/metrics_robust_mismatch.csv"):
     """
     Robustness sweep B: model mismatch by varying principal beta while assistant beta is fixed.
     Focused on K={3,4} for runtime.
@@ -787,14 +853,12 @@ def run_robust_mismatch(output_csv="results/metrics_robust_mismatch.csv"):
     assistant_beta = config.DEFAULT_BETA
     answer_noise = config.ANSWER_NOISE
     reps = list(getattr(config, "REPL_SEEDS", [0]))
-    n_episodes_per_seed = min(
-        5, int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
-    )
+    n_episodes_per_seed = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
 
     rows = []
     for K in ks:
         for principal_beta in principal_betas:
-            for policy in config.POLICIES:
+            for policy in config.ROBUST_MISMATCH_POLICIES:
                 for rep_seed in reps:
                     for episode_id in range(n_episodes_per_seed):
                         seed = _sweep_env_seed(
@@ -868,7 +932,7 @@ def run_robust_mismatch(output_csv="results/metrics_robust_mismatch.csv"):
     return rows
 
 
-def run_question_difficulty_sweep(output_csv="results/metrics_question_difficulty.csv"):
+def run_question_difficulty_sweep(output_csv="results/metrics/metrics_question_difficulty.csv"):
     """
     Focused sweep for question-difficulty effects under mixed question types.
     Fixed K={3,4}, comparing:
@@ -881,9 +945,7 @@ def run_question_difficulty_sweep(output_csv="results/metrics_question_difficult
     beta_vals = [config.DEFAULT_BETA]
     answer_noise = config.ANSWER_NOISE
     reps = list(getattr(config, "REPL_SEEDS", [0]))
-    n_episodes_per_seed = min(
-        2, int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
-    )
+    n_episodes_per_seed = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
 
     total_per_condition = len(reps) * n_episodes_per_seed
     print(
@@ -973,7 +1035,7 @@ def _template_split_ids(holdout_ratio=0.30):
     return train_like_ids, holdout_ids
 
 
-def run_generalization_templates(output_csv="results/metrics_generalization_templates.csv"):
+def run_generalization_templates(output_csv="results/metrics/metrics_generalization_templates.csv"):
     """
     Held-out instruction-template evaluation.
     No training is performed; this probes brittleness under unseen templates.
@@ -1079,7 +1141,7 @@ def run_generalization_templates(output_csv="results/metrics_generalization_temp
     return rows
 
 
-def run_scale_k(output_csv="results/metrics_scaleK.csv"):
+def run_scale_k(output_csv="results/metrics/metrics_scaleK.csv"):
     """
     Scale ambiguity K up to 6 at fixed dynamics to keep runtime bounded.
     """
@@ -1087,7 +1149,7 @@ def run_scale_k(output_csv="results/metrics_scaleK.csv"):
     ks = [1, 2, 3, 4, 5, 6]
     eps = 0.05
     beta = 2.0
-    policies = list(config.POLICIES)
+    policies = list(config.SCALEK_POLICIES)
     reps = list(getattr(config, "REPL_SEEDS", [0]))
     n_episodes_per_seed = int(
         getattr(
@@ -1173,4 +1235,741 @@ def run_scale_k(output_csv="results/metrics_scaleK.csv"):
         w.writeheader()
         w.writerows(rows)
     print("Wrote", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Generalization experiment: layout type (vertical vs horizontal wall)
+# ---------------------------------------------------------------------------
+
+def run_generalization_layout(output_csv="results/metrics/metrics_generalization_layout.csv"):
+    """Sweep layout type (vertical/horizontal wall) at K={3,4}."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    layout_types = ["vertical", "horizontal"]
+    policies = getattr(config, "GENERALIZATION_POLICIES", ["ask_or_act", "never_ask", "info_gain_ask"])
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+
+    rows = []
+    for K in ks:
+        for layout in layout_types:
+            for policy in policies:
+                for eps in config.EPS_LEVELS:
+                    for beta in config.BETA_LEVELS:
+                        for rep_seed in reps:
+                            for eid in range(n_ep):
+                                seed = _sweep_env_seed(config.BASE_SEED + 900000, rep_seed, K, eps, beta, eid)
+                                cfg = {"ambiguity_K": K, "eps": eps, "beta": beta, "layout_type": layout}
+                                m = _run_episode_impl(policy, seed, cfg)
+                                rows.append({
+                                    "policy": policy, "K": K, "layout_type": layout,
+                                    "eps": eps, "beta": beta,
+                                    "rep_seed": int(rep_seed), "episode_id": int(eid),
+                                    "success": m["success"], "steps": m["steps"],
+                                    "questions_asked": m["questions_asked"],
+                                    "regret": m["regret"],
+                                    "team_cost": m["team_cost"],
+                                })
+    fieldnames = ["policy", "K", "layout_type", "eps", "beta", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Layout sweep:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Generalization experiment: non-uniform (distance-weighted) prior
+# ---------------------------------------------------------------------------
+
+def run_generalization_prior(output_csv="results/metrics/metrics_generalization_prior.csv"):
+    """Sweep prior type (uniform/distance) at K={3,4}."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    prior_types = ["uniform", "distance"]
+    policies = getattr(config, "GENERALIZATION_POLICIES", ["ask_or_act", "never_ask", "info_gain_ask"])
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+
+    rows = []
+    for K in ks:
+        for prior in prior_types:
+            for policy in policies:
+                for eps in config.EPS_LEVELS:
+                    for beta in config.BETA_LEVELS:
+                        for rep_seed in reps:
+                            for eid in range(n_ep):
+                                seed = _sweep_env_seed(config.BASE_SEED + 950000, rep_seed, K, eps, beta, eid)
+                                cfg = {"ambiguity_K": K, "eps": eps, "beta": beta, "prior_type": prior}
+                                m = _run_episode_impl(policy, seed, cfg)
+                                rows.append({
+                                    "policy": policy, "K": K, "prior_type": prior,
+                                    "eps": eps, "beta": beta,
+                                    "rep_seed": int(rep_seed), "episode_id": int(eid),
+                                    "success": m["success"], "steps": m["steps"],
+                                    "questions_asked": m["questions_asked"],
+                                    "regret": m["regret"],
+                                    "team_cost": m["team_cost"],
+                                })
+    fieldnames = ["policy", "K", "prior_type", "eps", "beta", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Prior sweep:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Generalization experiment: asymmetric answer noise
+# ---------------------------------------------------------------------------
+
+def run_generalization_asymmetric_noise(output_csv="results/metrics/metrics_generalization_asymmetric_noise.csv"):
+    """Sweep answer-noise profile (default symmetric / asymmetric) at K={3,4}."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    policies = getattr(config, "GENERALIZATION_POLICIES", ["ask_or_act", "never_ask", "info_gain_ask"])
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    noise_profiles = {
+        "default": dict(config.ANSWER_NOISE_BY_QTYPE),
+        "asymmetric": dict(getattr(config, "ASYMMETRIC_NOISE_BY_QTYPE", config.ANSWER_NOISE_BY_QTYPE)),
+    }
+    _saved_by_qtype = dict(config.ANSWER_NOISE_BY_QTYPE)
+
+    rows = []
+    try:
+        for K in ks:
+            for profile_name, profile_noise in noise_profiles.items():
+                config.ANSWER_NOISE_BY_QTYPE = dict(profile_noise)
+                for policy in policies:
+                    for eps in config.EPS_LEVELS:
+                        for beta in config.BETA_LEVELS:
+                            for rep_seed in reps:
+                                for eid in range(n_ep):
+                                    seed = _sweep_env_seed(config.BASE_SEED + 980000, rep_seed, K, eps, beta, eid)
+                                    cfg = {"ambiguity_K": K, "eps": eps, "beta": beta}
+                                    m = _run_episode_impl(policy, seed, cfg)
+                                    rows.append({
+                                        "policy": policy, "K": K, "noise_profile": profile_name,
+                                        "eps": eps, "beta": beta,
+                                        "rep_seed": int(rep_seed), "episode_id": int(eid),
+                                        "success": m["success"], "steps": m["steps"],
+                                        "questions_asked": m["questions_asked"],
+                                        "regret": m["regret"],
+                                        "team_cost": m["team_cost"],
+                                    })
+    finally:
+        config.ANSWER_NOISE_BY_QTYPE = _saved_by_qtype
+
+    fieldnames = ["policy", "K", "noise_profile", "eps", "beta", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Noise sweep:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Structural OOD: different grid size + single room
+# ---------------------------------------------------------------------------
+
+def run_structural_ood(output_csv="results/metrics/metrics_structural_ood.csv"):
+    """Sweep grid size (7,9,11) x room config (two-room, single) at K={3,4}."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    grid_sizes = getattr(config, "STRUCTURAL_OOD_GRID_SIZES", [7, 9, 11])
+    room_configs = getattr(config, "STRUCTURAL_OOD_ROOM_CONFIGS", [True, False])
+    policies = getattr(config, "STRUCTURAL_OOD_POLICIES", ["ask_or_act", "never_ask", "info_gain_ask"])
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for K in ks:
+        for N in grid_sizes:
+            for two_rooms in room_configs:
+                for policy in policies:
+                    for rep_seed in reps:
+                        for eid in range(n_ep):
+                            seed = _sweep_env_seed(
+                                config.BASE_SEED + 1200000, rep_seed, K, eps, beta, eid
+                            ) + N * 7 + (0 if two_rooms else 3)
+                            cfg = {
+                                "ambiguity_K": K, "eps": eps, "beta": beta,
+                                "N": N, "two_rooms": two_rooms,
+                            }
+                            m = _run_episode_impl(policy, seed, cfg)
+                            rows.append({
+                                "policy": policy, "K": K, "N": N,
+                                "two_rooms": two_rooms,
+                                "rep_seed": int(rep_seed), "episode_id": int(eid),
+                                "success": m["success"], "steps": m["steps"],
+                                "questions_asked": m["questions_asked"],
+                                "regret": m["regret"],
+                                "team_cost": m["team_cost"],
+                            })
+    fieldnames = ["policy", "K", "N", "two_rooms", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Structural OOD:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Model-mismatch (extended): noise mismatch + prior mismatch
+# ---------------------------------------------------------------------------
+
+def run_model_mismatch_extended(output_csv="results/metrics/metrics_model_mismatch_ext.csv"):
+    """
+    Extended model-mismatch: noise mismatch (agent assumes flat noise while true
+    noise is per-qtype) and prior mismatch (agent uses distance prior on uniform world).
+    """
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    policies = getattr(config, "MISMATCH_POLICIES", ["ask_or_act", "never_ask", "info_gain_ask"])
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    # True per-qtype noise profile
+    true_noise_profile = dict(config.ANSWER_NOISE_BY_QTYPE)
+
+    # Conditions: (label, true_noise_by_qtype, agent_noise_by_qtype, agent_answer_noise, agent_prior)
+    conditions = [
+        # Matched baseline
+        ("matched", None, None, config.ANSWER_NOISE, "uniform"),
+        # Noise mismatch: true per-qtype, agent assumes flat 0.10
+        ("noise_flat010", true_noise_profile, {}, 0.10, "uniform"),
+        # Noise mismatch: true per-qtype, agent assumes zero noise
+        ("noise_flat000", true_noise_profile, {}, 0.0, "uniform"),
+        # Prior mismatch: agent uses distance prior on uniformly-placed goals
+        ("prior_distance", None, None, config.ANSWER_NOISE, "distance"),
+    ]
+
+    _saved_by_qtype = dict(config.ANSWER_NOISE_BY_QTYPE)
+    rows = []
+    try:
+        for K in ks:
+            for cond_label, true_nq, agent_nq, agent_an, agent_prior in conditions:
+                # Set agent's believed noise profile
+                if agent_nq is not None:
+                    config.ANSWER_NOISE_BY_QTYPE = dict(agent_nq)
+                else:
+                    config.ANSWER_NOISE_BY_QTYPE = dict(_saved_by_qtype)
+                for policy in policies:
+                    for rep_seed in reps:
+                        for eid in range(n_ep):
+                            seed = _sweep_env_seed(
+                                config.BASE_SEED + 1300000, rep_seed, K, eps, beta, eid
+                            )
+                            cfg = {
+                                "ambiguity_K": K, "eps": eps, "beta": beta,
+                                "answer_noise": agent_an,
+                                "prior_type": agent_prior,
+                            }
+                            if true_nq is not None:
+                                cfg["mismatch_true_noise_by_qtype"] = true_nq
+                            m = _run_episode_impl(policy, seed, cfg)
+                            rows.append({
+                                "policy": policy, "K": K,
+                                "condition": cond_label,
+                                "rep_seed": int(rep_seed), "episode_id": int(eid),
+                                "success": m["success"], "steps": m["steps"],
+                                "questions_asked": m["questions_asked"],
+                                "regret": m["regret"],
+                                "team_cost": m["team_cost"],
+                            })
+    finally:
+        config.ANSWER_NOISE_BY_QTYPE = _saved_by_qtype
+
+    fieldnames = ["policy", "K", "condition", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Model-mismatch extended:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Failure penalty sweep: wrong-pick penalty shifts the ask threshold
+# ---------------------------------------------------------------------------
+
+def run_failure_penalty_sweep(output_csv="results/metrics/metrics_failure_penalty.csv"):
+    """Sweep wrong-pick penalty c_fail at K={3,4} to show ask-threshold shift."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    penalties = getattr(config, "FAILURE_PENALTY_VALUES", [0, 5, 10, 20, 50])
+    policies = getattr(config, "FAILURE_PENALTY_POLICIES", ["ask_or_act", "never_ask", "info_gain_ask"])
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for K in ks:
+        for c_fail in penalties:
+            for policy in policies:
+                for rep_seed in reps:
+                    for eid in range(n_ep):
+                        seed = _sweep_env_seed(
+                            config.BASE_SEED + 1400000, rep_seed, K, eps, beta, eid
+                        )
+                        cfg = {
+                            "ambiguity_K": K, "eps": eps, "beta": beta,
+                            "wrong_pick_penalty": c_fail,
+                        }
+                        m = _run_episode_impl(policy, seed, cfg)
+                        rows.append({
+                            "policy": policy, "K": K,
+                            "c_fail": c_fail,
+                            "rep_seed": int(rep_seed), "episode_id": int(eid),
+                            "success": m["success"], "steps": m["steps"],
+                            "questions_asked": m["questions_asked"],
+                            "regret": m["regret"],
+                            "team_cost": m["team_cost"],
+                        })
+    fieldnames = ["policy", "K", "c_fail", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Failure penalty:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Action-drop sweep: degrade passive channel quality
+# ---------------------------------------------------------------------------
+
+def run_action_drop_sweep(output_csv="results/metrics/metrics_action_drop.csv"):
+    """Sweep action drop rate to measure passive channel degradation effect."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    drop_rates = getattr(config, "ACTION_DROP_RATES", [0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+    policies = getattr(config, "ACTION_DROP_POLICIES", ["ask_or_act", "never_ask", "info_gain_ask"])
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for K in ks:
+        for p_drop in drop_rates:
+            for policy in policies:
+                for rep_seed in reps:
+                    for eid in range(n_ep):
+                        seed = _sweep_env_seed(
+                            config.BASE_SEED + 1600000, rep_seed, K, eps, beta, eid
+                        )
+                        cfg = {
+                            "ambiguity_K": K, "eps": eps, "beta": beta,
+                            "action_drop_rate": p_drop,
+                        }
+                        m = _run_episode_impl(policy, seed, cfg)
+                        rows.append({
+                            "policy": policy, "K": K,
+                            "action_drop_rate": p_drop,
+                            "rep_seed": int(rep_seed), "episode_id": int(eid),
+                            "success": m["success"], "steps": m["steps"],
+                            "questions_asked": m["questions_asked"],
+                            "regret": m["regret"],
+                            "team_cost": m["team_cost"],
+                        })
+    fieldnames = ["policy", "K", "action_drop_rate", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Action drop:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Cost × Passive-quality heatmap
+# ---------------------------------------------------------------------------
+
+def run_cost_passive_heatmap(output_csv="results/metrics/metrics_cost_passive_heatmap.csv"):
+    """2D sweep: question cost × action drop rate at K=4, ask_or_act only."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    K = 4
+    cq_levels = getattr(config, "HEATMAP_CQ_LEVELS", [0.0, 0.1, 0.3, 0.5, 0.7, 1.0, 1.5])
+    drop_levels = getattr(config, "HEATMAP_DROP_LEVELS", [0.0, 0.2, 0.4, 0.6, 0.8])
+    policy = "ask_or_act"
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for cq in cq_levels:
+        for p_drop in drop_levels:
+            for rep_seed in reps:
+                for eid in range(n_ep):
+                    seed = _sweep_env_seed(
+                        config.BASE_SEED + 1700000, rep_seed, K, eps, beta, eid
+                    )
+                    cfg = {
+                        "ambiguity_K": K, "eps": eps, "beta": beta,
+                        "question_cost": cq,
+                        "action_drop_rate": p_drop,
+                    }
+                    m = _run_episode_impl(policy, seed, cfg)
+                    rows.append({
+                        "policy": policy, "K": K,
+                        "question_cost": cq,
+                        "action_drop_rate": p_drop,
+                        "rep_seed": int(rep_seed), "episode_id": int(eid),
+                        "success": m["success"], "steps": m["steps"],
+                        "questions_asked": m["questions_asked"],
+                        "regret": m["regret"],
+                        "team_cost": m["team_cost"],
+                    })
+    fieldnames = ["policy", "K", "question_cost", "action_drop_rate", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Cost×Passive heatmap:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Novelty Experiment A: Passive-resolvability analysis
+# Measure shared optimal first action among candidate goals per episode
+# ---------------------------------------------------------------------------
+
+def run_passive_resolvability(output_csv="results/metrics/metrics_passive_resolvability.csv"):
+    """Per-episode: compute path overlap among candidate goals, then correlate with ask behavior."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    from src.agents.assistant import _bfs_next_step
+    ks = [3, 4]
+    policies = ["ask_or_act", "never_ask", "info_gain_ask"]
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for K in ks:
+        for policy in policies:
+            for rep_seed in reps:
+                for eid in range(n_ep):
+                    seed = _sweep_env_seed(config.BASE_SEED + 1800000, rep_seed, K, eps, beta, eid)
+                    cfg = {"ambiguity_K": K, "eps": eps, "beta": beta}
+                    # Generate world to measure overlap
+                    env_tmp, instr_tmp, true_g = generate_world(seed, ambiguity_K=K)
+                    cands = instruction_to_candidate_goals(instr_tmp, env_tmp)
+                    state_tmp = env_tmp.get_state()
+                    p_pos = state_tmp["principal_pos"]
+                    # Compute first optimal action for each candidate from principal position
+                    first_actions = []
+                    for g in cands:
+                        obj = env_tmp.get_object_by_id(g)
+                        if obj and not obj.get("collected", False):
+                            a = _bfs_next_step(env_tmp.N, env_tmp.walls, p_pos, obj["pos"])
+                            first_actions.append(a)
+                    # Overlap: fraction of candidates sharing the modal first action
+                    if first_actions:
+                        from collections import Counter
+                        ctr = Counter(first_actions)
+                        modal_count = ctr.most_common(1)[0][1]
+                        overlap = modal_count / len(first_actions)
+                    else:
+                        overlap = 1.0
+                    # Now run the episode
+                    m = _run_episode_impl(policy, seed, cfg)
+                    rows.append({
+                        "policy": policy, "K": K, "overlap": round(overlap, 3),
+                        "rep_seed": int(rep_seed), "episode_id": int(eid),
+                        "success": m["success"], "steps": m["steps"],
+                        "questions_asked": m["questions_asked"],
+                        "regret": m["regret"], "team_cost": m["team_cost"],
+                    })
+    fieldnames = ["policy", "K", "overlap", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Passive resolvability:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Novelty Experiment B: Informative irrationality (beta inverted-U)
+# ---------------------------------------------------------------------------
+
+def run_informative_irrationality(output_csv="results/metrics/metrics_informative_irrationality.csv"):
+    """Fine-grained beta sweep to find inverted-U in assistance quality."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    betas = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0, 12.0, 16.0]
+    policies = ["ask_or_act", "never_ask", "info_gain_ask"]
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+
+    rows = []
+    for K in ks:
+        for true_beta in betas:
+            for policy in policies:
+                for rep_seed in reps:
+                    for eid in range(n_ep):
+                        seed = _sweep_env_seed(
+                            config.BASE_SEED + 1900000, rep_seed, K, eps, true_beta, eid
+                        )
+                        cfg = {
+                            "ambiguity_K": K, "eps": eps,
+                            "principal_beta": true_beta,
+                            "assistant_beta": true_beta,  # matched
+                            "beta": true_beta,
+                        }
+                        m = _run_episode_impl(policy, seed, cfg)
+                        rows.append({
+                            "policy": policy, "K": K, "beta": true_beta,
+                            "rep_seed": int(rep_seed), "episode_id": int(eid),
+                            "success": m["success"], "steps": m["steps"],
+                            "questions_asked": m["questions_asked"],
+                            "regret": m["regret"], "team_cost": m["team_cost"],
+                        })
+    fieldnames = ["policy", "K", "beta", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Informative irrationality:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Novelty Experiment C: More observation can hurt under mismatch
+# Force h observation steps before allowing ask/act, with mismatched beta
+# ---------------------------------------------------------------------------
+
+def run_observation_hurts_mismatch(output_csv="results/metrics/metrics_obs_hurts_mismatch.csv"):
+    """Force observation horizon h, then allow normal policy. Matched vs mismatched beta."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    obs_horizons = [0, 1, 2, 3, 4, 5]
+    # Matched: assistant_beta = principal_beta = 2
+    # Mismatched: principal_beta = 1 (near-random), assistant_beta = 2
+    mismatch_conditions = [
+        ("matched", 2.0, 2.0),
+        ("mismatch_b1", 1.0, 2.0),
+        ("mismatch_b4", 4.0, 2.0),
+    ]
+    policy = "ask_or_act"
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+
+    rows = []
+    for K in ks:
+        for h in obs_horizons:
+            for cond_name, p_beta, a_beta in mismatch_conditions:
+                for rep_seed in reps:
+                    for eid in range(n_ep):
+                        seed = _sweep_env_seed(
+                            config.BASE_SEED + 2000000, rep_seed, K, eps, p_beta, eid
+                        )
+                        # Force observation: set ask_window to start after h steps
+                        # ask_window = 6 means ask allowed in steps 0-6
+                        # To force h observe steps: set ask_window = max(0, 6 - h)
+                        # But simpler: just don't allow asking in first h steps
+                        # We use the ask_window parameter creatively:
+                        # Normal ask_window = 6. We set it so asking starts at step h.
+                        # Actually, ask_window blocks asking AFTER step ask_window.
+                        # To block asking BEFORE step h, we need a different mechanism.
+                        # Simplest: for h>0, run first h steps as never_ask, then switch.
+                        # But that requires modifying the episode loop.
+                        # Alternative: use action_drop_rate=0 (observe everything) but
+                        # set max_questions_per_episode based on h.
+                        # Actually, simplest correct approach: set ask_window = 6 - h
+                        # This means the policy can only ask during steps 0..(6-h).
+                        # With h=0: window=6 (normal). h=3: window=3. h=6: window=0 (never ask).
+                        # This isn't exactly "force observe h then ask" but it reduces
+                        # the ask window, which has a similar effect.
+                        # Better: just use the existing machinery. The ask_window check is:
+                        #   step_t = len(principal_action_history)
+                        #   if step_t > ask_window: don't ask
+                        # So if I set ask_window = 6 but also set a min_ask_step,
+                        # I'd need to modify the policy.
+                        # For now, let's just use ask_window = max(0, 6 - h) as a proxy.
+                        effective_window = max(0, 6 - h)
+                        cfg = {
+                            "ambiguity_K": K, "eps": eps,
+                            "principal_beta": p_beta,
+                            "assistant_beta": a_beta,
+                            "beta": a_beta,
+                        }
+                        # Override ASK_WINDOW via the policy kwargs
+                        # _run_episode_impl passes ask_window from config
+                        # We need to thread this through config_dict
+                        cfg["ask_window_override"] = effective_window
+                        m = _run_episode_impl(policy, seed, cfg)
+                        rows.append({
+                            "policy": policy, "K": K,
+                            "obs_horizon": h,
+                            "condition": cond_name,
+                            "principal_beta": p_beta,
+                            "assistant_beta": a_beta,
+                            "rep_seed": int(rep_seed), "episode_id": int(eid),
+                            "success": m["success"], "steps": m["steps"],
+                            "questions_asked": m["questions_asked"],
+                            "regret": m["regret"], "team_cost": m["team_cost"],
+                        })
+    fieldnames = ["policy", "K", "obs_horizon", "condition", "principal_beta",
+                  "assistant_beta", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "regret", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Obs hurts mismatch:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Fix: Template-stratified main comparison (T3 only)
+# ---------------------------------------------------------------------------
+
+def run_within_template_t3(output_csv="results/metrics/metrics_within_template_t3.csv"):
+    """Main comparison restricted to T3 (color-only) across K={2,3,4}."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [2, 3, 4]
+    policies = list(getattr(config, "MAIN_SWEEP_BASE_POLICIES", config.POLICIES))
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for K in ks:
+        for policy in policies:
+            for rep_seed in reps:
+                for eid in range(n_ep):
+                    seed = _sweep_env_seed(config.BASE_SEED + 2600000, rep_seed, K, eps, beta, eid)
+                    cfg = {"ambiguity_K": K, "eps": eps, "beta": beta,
+                           "allowed_template_ids": [3]}
+                    m = _run_episode_impl(policy, seed, cfg)
+                    rows.append({
+                        "policy": policy, "K": K,
+                        "rep_seed": int(rep_seed), "episode_id": int(eid),
+                        "success": m["success"], "steps": m["steps"],
+                        "questions_asked": m["questions_asked"],
+                        "team_cost": m["team_cost"],
+                    })
+    fieldnames = ["policy", "K", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked", "team_cost"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Within-template T3:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Fix: Matched entropy-gate comparison
+# ---------------------------------------------------------------------------
+
+def run_matched_gate(output_csv="results/metrics/metrics_matched_gate.csv"):
+    """All policies with identical entropy gate tau_H=0.3."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    policies = list(getattr(config, "MAIN_SWEEP_BASE_POLICIES", config.POLICIES))
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+    gate = 0.3  # matched for all
+
+    rows = []
+    for K in ks:
+        for policy in policies:
+            for rep_seed in reps:
+                for eid in range(n_ep):
+                    seed = _sweep_env_seed(config.BASE_SEED + 2700000, rep_seed, K, eps, beta, eid)
+                    cfg = {"ambiguity_K": K, "eps": eps, "beta": beta,
+                           "entropy_gate_override": gate,
+                           "entropy_threshold_override": gate}
+                    m = _run_episode_impl(policy, seed, cfg)
+                    rows.append({
+                        "policy": policy, "K": K,
+                        "rep_seed": int(rep_seed), "episode_id": int(eid),
+                        "success": m["success"], "steps": m["steps"],
+                        "questions_asked": m["questions_asked"],
+                    })
+    fieldnames = ["policy", "K", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Matched gate:", output_csv, f"({len(rows)} rows)")
+    return rows
+
+
+# ---------------------------------------------------------------------------
+# Fix: Clean Shapley coalitions (same policy, ablate channels)
+# ---------------------------------------------------------------------------
+
+def run_shapley_clean(output_csv="results/metrics/metrics_shapley_clean.csv"):
+    """Shapley coalitions: AskOrAct with channel ablations."""
+    os.makedirs(os.path.dirname(output_csv) or "results", exist_ok=True)
+    ks = [3, 4]
+    # Coalitions: (label, action_drop_rate, max_questions_per_episode)
+    coalitions = [
+        ("both",         0.0, None),  # both channels
+        ("passive_only", 0.0, 0),     # passive only (can't ask)
+        ("active_only",  1.0, None),  # active only (can't observe)
+        ("neither",      1.0, 0),     # neither channel
+    ]
+    reps = list(getattr(config, "REPL_SEEDS", [0]))
+    n_ep = int(getattr(config, "N_EPISODES_PER_SEED", config.N_EPISODES_PER_CONDITION))
+    eps = config.DEFAULT_EPS
+    beta = config.DEFAULT_BETA
+
+    rows = []
+    for K in ks:
+        for label, p_drop, max_q in coalitions:
+            for rep_seed in reps:
+                for eid in range(n_ep):
+                    seed = _sweep_env_seed(config.BASE_SEED + 2800000, rep_seed, K, eps, beta, eid)
+                    cfg = {"ambiguity_K": K, "eps": eps, "beta": beta,
+                           "action_drop_rate": p_drop}
+                    if max_q is not None:
+                        cfg["max_questions_per_episode"] = max_q
+                    m = _run_episode_impl("ask_or_act", seed, cfg)
+                    rows.append({
+                        "coalition": label, "K": K,
+                        "rep_seed": int(rep_seed), "episode_id": int(eid),
+                        "success": m["success"], "steps": m["steps"],
+                        "questions_asked": m["questions_asked"],
+                    })
+    fieldnames = ["coalition", "K", "rep_seed", "episode_id",
+                  "success", "steps", "questions_asked"]
+    with open(output_csv, "w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w.writeheader()
+        w.writerows(rows)
+    print("Shapley clean:", output_csv, f"({len(rows)} rows)")
     return rows

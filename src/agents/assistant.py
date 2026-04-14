@@ -80,7 +80,7 @@ def V_after_action_approx(env, state, g, assistant_action):
     return _assistant_value_from_pos(env, new_a_pos, g)
 
 
-def _normalized_question_value(env, state, posterior, candidate_goals, q, answer_noise):
+def _normalized_question_value(env, state, posterior, candidate_goals, q, answer_noise, wrong_pick_penalty=0):
     expected_V = 0.0
     total_mass = 0.0
     for ans in q[1]:
@@ -105,6 +105,9 @@ def _normalized_question_value(env, state, posterior, candidate_goals, q, answer
             p_new.get(g, 0.0) * V_after_action_approx(env, state, g, task_act)
             for g in candidate_goals
         )
+        if wrong_pick_penalty > 0:
+            p_wrong = 1.0 - max(p_new.get(g, 0.0) for g in candidate_goals)
+            v_ans += wrong_pick_penalty * p_wrong
         expected_V += p_ans * v_ans
         total_mass += p_ans
     if total_mass <= 0:
@@ -175,7 +178,7 @@ def best_question_info_gain(env, posterior, candidate_goals, answer_noise, asked
     return best_q, best_ig
 
 
-def best_question_cost(state, posterior, candidate_goals, env, answer_noise, question_cost=None, asked_qnames=None):
+def best_question_cost(state, posterior, candidate_goals, env, answer_noise, question_cost=None, asked_qnames=None, wrong_pick_penalty=0):
     question_cost = question_cost if question_cost is not None else config.QUESTION_COST
     asked = set(asked_qnames or [])
     best_q = None
@@ -183,7 +186,7 @@ def best_question_cost(state, posterior, candidate_goals, env, answer_noise, que
     for q in list_questions():
         if q[0] in asked:
             continue
-        expected_v = _normalized_question_value(env, state, posterior, candidate_goals, q, answer_noise)
+        expected_v = _normalized_question_value(env, state, posterior, candidate_goals, q, answer_noise, wrong_pick_penalty=wrong_pick_penalty)
         if expected_v == float("inf"):
             continue
         cost_q = 1.0 + question_cost + expected_v
@@ -193,16 +196,20 @@ def best_question_cost(state, posterior, candidate_goals, env, answer_noise, que
     return best_q, best_cost
 
 
-def CostAct(state, posterior, candidate_goals, env, answer_noise):
+def CostAct(state, posterior, candidate_goals, env, answer_noise, wrong_pick_penalty=0):
     if not candidate_goals or not posterior:
         return 1.0
     g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
     task_act = assistant_task_action(env, state, g_star)
     V = sum(posterior.get(g, 0) * V_after_action_approx(env, state, g, task_act) for g in candidate_goals if posterior.get(g, 0) > 0)
-    return 1.0 + V
+    cost = 1.0 + V
+    if wrong_pick_penalty > 0:
+        p_wrong = 1.0 - posterior.get(g_star, 0)
+        cost += wrong_pick_penalty * p_wrong
+    return cost
 
 
-def CostAsk(state, posterior, candidate_goals, env, answer_noise, question_cost=None, asked_qnames=None):
+def CostAsk(state, posterior, candidate_goals, env, answer_noise, question_cost=None, asked_qnames=None, wrong_pick_penalty=0):
     if not candidate_goals or not posterior:
         return 1.0 + (question_cost if question_cost is not None else config.QUESTION_COST)
     _, best_cost = best_question_cost(
@@ -213,6 +220,7 @@ def CostAsk(state, posterior, candidate_goals, env, answer_noise, question_cost=
         answer_noise=answer_noise,
         question_cost=question_cost,
         asked_qnames=asked_qnames,
+        wrong_pick_penalty=wrong_pick_penalty,
     )
     return best_cost
 
@@ -251,11 +259,13 @@ def policy_always_ask(env, state, instruction_u, posterior, candidate_goals, pri
 
 def policy_ask_or_act(env, state, instruction_u, posterior, candidate_goals, principal_action_history,
                       questions_asked, rng, beta, eps, answer_noise, question_cost=None,
-                      max_questions=None, entropy_gate=None, ask_window=None, asked_qnames=None, **kwargs):
+                      max_questions=None, entropy_gate=None, ask_window=None, asked_qnames=None,
+                      wrong_pick_penalty=None, **kwargs):
     question_cost = question_cost if question_cost is not None else config.QUESTION_COST
     max_questions = max_questions if max_questions is not None else config.MAX_QUESTIONS
     entropy_gate = entropy_gate if entropy_gate is not None else config.ENTROPY_GATE
     ask_window = ask_window if ask_window is not None else config.ASK_WINDOW
+    wpp = wrong_pick_penalty if wrong_pick_penalty is not None else getattr(config, "WRONG_PICK_PENALTY", 0)
     if not candidate_goals or not posterior:
         return "stay", posterior
     if questions_asked >= max_questions:
@@ -270,7 +280,7 @@ def policy_ask_or_act(env, state, instruction_u, posterior, candidate_goals, pri
         g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
         return assistant_task_action(env, state, g_star), posterior
 
-    cost_act = CostAct(state, posterior, candidate_goals, env, answer_noise)
+    cost_act = CostAct(state, posterior, candidate_goals, env, answer_noise, wrong_pick_penalty=wpp)
     best_q, cost_ask = best_question_cost(
         state=state,
         posterior=posterior,
@@ -279,6 +289,7 @@ def policy_ask_or_act(env, state, instruction_u, posterior, candidate_goals, pri
         answer_noise=answer_noise,
         question_cost=question_cost,
         asked_qnames=asked_qnames,
+        wrong_pick_penalty=wpp,
     )
     if best_q is not None and cost_ask < cost_act:
         return ("ask", best_q), posterior
@@ -505,6 +516,15 @@ def _posterior_key(posterior, candidate_goals):
     return tuple(round(float(p.get(g, 0.0)), 3) for g in candidate_goals)
 
 
+def _terminal_failure_remaining_cost(sim_steps, episode_max_steps):
+    """
+    Additional step penalty needed so cumulative rollout cost matches the real
+    evaluation objective for failures:
+      team_cost = episode_max_steps + question_cost * questions_asked
+    """
+    return float(max(0, int(episode_max_steps) - int(sim_steps)))
+
+
 def _sim_transition(env, rng, action, hidden_goal, posterior, candidate_goals, principal_pos, assistant_pos, collected,
                     q_count, q_mask, sim_steps, question_cost, ask_counts_as_step, wrong_pick_fail,
                     principal_beta, principal_eps, assistant_beta, assistant_eps, answer_noise, episode_max_steps,
@@ -677,7 +697,7 @@ def policy_pomcp_planner(env, state, instruction_u, posterior, candidate_goals, 
         if depth <= 0:
             return -_heuristic_remaining_cost(a_pos, hidden_goal, coll, obj_idx, obj_pos, env.N, env.walls, s_steps, episode_max_steps)
         if s_steps >= episode_max_steps:
-            return -float(episode_max_steps)
+            return 0.0
         if hidden_goal in obj_idx and coll[obj_idx[hidden_goal]]:
             return 0.0
         if _object_at_pos(a_pos, coll, pos_to_obj_ids, obj_idx) is not None:
@@ -695,7 +715,7 @@ def policy_pomcp_planner(env, state, instruction_u, posterior, candidate_goals, 
         if success:
             return -c
         if done:
-            return -(c + float(episode_max_steps))
+            return -(c + _terminal_failure_remaining_cost(s2, episode_max_steps))
         return -c + rollout(hidden_goal, post2, cand2, p2, a2, coll2, q2, qm2, s2, depth - 1)
 
     def simulate(hidden_goal, post, cand_goals, p_pos, a_pos, coll, q_count, q_mask, s_steps, depth):
@@ -704,7 +724,7 @@ def policy_pomcp_planner(env, state, instruction_u, posterior, candidate_goals, 
         if depth <= 0:
             return -_heuristic_remaining_cost(a_pos, hidden_goal, coll, obj_idx, obj_pos, env.N, env.walls, s_steps, episode_max_steps)
         if s_steps >= episode_max_steps:
-            return -float(episode_max_steps)
+            return 0.0
         if hidden_goal in obj_idx and coll[obj_idx[hidden_goal]]:
             return 0.0
         key = state_key(p_pos, a_pos, coll, cand_goals, post, q_count, q_mask, s_steps, depth)
@@ -727,7 +747,7 @@ def policy_pomcp_planner(env, state, instruction_u, posterior, candidate_goals, 
             if success:
                 ret = -c
             elif done:
-                ret = -(c + float(episode_max_steps))
+                ret = -(c + _terminal_failure_remaining_cost(s2, episode_max_steps))
             else:
                 ret = -c + rollout(hidden_goal, post2, cand2, p2, a2, coll2, q2, qm2, s2, depth - 1)
             node["N"] += 1
@@ -757,7 +777,7 @@ def policy_pomcp_planner(env, state, instruction_u, posterior, candidate_goals, 
         if success:
             ret = -c
         elif done:
-            ret = -(c + float(episode_max_steps))
+            ret = -(c + _terminal_failure_remaining_cost(s2, episode_max_steps))
         else:
             ret = -c + simulate(hidden_goal, post2, cand2, p2, a2, coll2, q2, qm2, s2, depth - 1)
         node["N"] += 1
@@ -797,3 +817,289 @@ def policy_pomcp_planner(env, state, instruction_u, posterior, candidate_goals, 
         g_star = max(candidate_goals0, key=lambda g: posterior0.get(g, 0.0))
         return assistant_task_action(env, state, g_star), posterior
     return best_action, posterior
+
+
+# ---------------------------------------------------------------------------
+# PassiveAwareAsk: heuristic overlap-based ask gate
+# ---------------------------------------------------------------------------
+
+def _compute_path_overlap(env, state, candidate_goals):
+    """Fraction of candidate goals sharing the modal optimal first action from principal pos."""
+    from collections import Counter
+    p_pos = state["principal_pos"]
+    actions = []
+    for g in candidate_goals:
+        obj = env.get_object_by_id(g)
+        if obj and not obj.get("collected", False):
+            a = _bfs_next_step(env.N, env.walls, p_pos, obj["pos"])
+            actions.append(a)
+    if not actions:
+        return 1.0
+    ctr = Counter(actions)
+    return ctr.most_common(1)[0][1] / len(actions)
+
+
+def policy_passive_aware_ask(env, state, instruction_u, posterior, candidate_goals, principal_action_history,
+                             questions_asked, rng, beta, eps, answer_noise, question_cost=None,
+                             max_questions=None, entropy_gate=None, ask_window=None, asked_qnames=None,
+                             wrong_pick_penalty=None, **kwargs):
+    """
+    PassiveAwareAsk: if candidate goals are path-aliased (overlap=1.0), ask immediately.
+    Otherwise fall through to normal AskOrAct cost comparison.
+    """
+    question_cost = question_cost if question_cost is not None else config.QUESTION_COST
+    max_questions = max_questions if max_questions is not None else config.MAX_QUESTIONS
+    entropy_gate = entropy_gate if entropy_gate is not None else config.ENTROPY_GATE
+    ask_window = ask_window if ask_window is not None else config.ASK_WINDOW
+    wpp = wrong_pick_penalty if wrong_pick_penalty is not None else getattr(config, "WRONG_PICK_PENALTY", 0)
+    if not candidate_goals or not posterior:
+        return "stay", posterior
+    if questions_asked >= max_questions:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+    step_t = len(principal_action_history)
+    if step_t > ask_window:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+    ent = posterior_entropy(posterior)
+    if ent <= entropy_gate:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+
+    # Overlap check: if aliased, ask immediately
+    overlap = _compute_path_overlap(env, state, candidate_goals)
+    if overlap >= 1.0:
+        best_q, _ = best_question_cost(
+            state=state, posterior=posterior, candidate_goals=candidate_goals,
+            env=env, answer_noise=answer_noise, question_cost=question_cost,
+            asked_qnames=asked_qnames, wrong_pick_penalty=wpp,
+        )
+        if best_q is not None:
+            return ("ask", best_q), posterior
+
+    # Normal AskOrAct cost comparison
+    cost_act = CostAct(state, posterior, candidate_goals, env, answer_noise, wrong_pick_penalty=wpp)
+    best_q, cost_ask = best_question_cost(
+        state=state, posterior=posterior, candidate_goals=candidate_goals,
+        env=env, answer_noise=answer_noise, question_cost=question_cost,
+        asked_qnames=asked_qnames, wrong_pick_penalty=wpp,
+    )
+    if best_q is not None and cost_ask < cost_act:
+        return ("ask", best_q), posterior
+    g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+    return assistant_task_action(env, state, g_star), posterior
+
+
+# ---------------------------------------------------------------------------
+# CostWaitAsk: principled one-step lookahead over future passive evidence
+# ---------------------------------------------------------------------------
+
+def _cost_wait(state, posterior, candidate_goals, env, answer_noise, question_cost,
+               asked_qnames, beta, eps, wrong_pick_penalty=0):
+    """
+    CostWait = 1 + E_{a_principal}[ min(CostAsk(b'), CostAct(b')) ]
+    where b' is the posterior after one more principal action observation.
+    """
+    from src.agents.principal import principal_action_probs
+    total = 0.0
+    for g in candidate_goals:
+        p_g = posterior.get(g, 0.0)
+        if p_g <= 0:
+            continue
+        # P(a | g) for each possible principal action
+        probs_a = principal_action_probs(state, g, env, beta, eps)
+        for a, p_a in probs_a.items():
+            if p_a <= 0:
+                continue
+            # Posterior after observing action a, weighted by prior on g
+            # We need: for each possible true goal g', compute P(a|g') and update
+            pass  # handled below
+
+    # More efficient: enumerate each possible observed action
+    from src.agents.principal import principal_action_probs, get_principal_actions
+    actions = get_principal_actions()
+    # P(a) = sum_g P(a|g) * P(g)
+    p_action = {}
+    for a in actions:
+        p_a = 0.0
+        for g in candidate_goals:
+            p_g = posterior.get(g, 0.0)
+            if p_g <= 0:
+                continue
+            probs = principal_action_probs(state, g, env, beta, eps)
+            p_a += p_g * probs.get(a, 0.0)
+        p_action[a] = p_a
+
+    cost_wait = 1.0  # one step of waiting
+    for a in actions:
+        p_a = p_action[a]
+        if p_a <= 0:
+            continue
+        # Update posterior given observed action a
+        post_new = {}
+        for g in candidate_goals:
+            p_g = posterior.get(g, 0.0)
+            if p_g <= 0:
+                continue
+            probs = principal_action_probs(state, g, env, beta, eps)
+            post_new[g] = p_g * probs.get(a, 0.0)
+        z = sum(post_new.values())
+        if z > 0:
+            for g in post_new:
+                post_new[g] /= z
+        else:
+            post_new = dict(posterior)
+
+        # After observing a, compute min(CostAsk, CostAct) under updated posterior
+        ca = CostAct(state, post_new, candidate_goals, env, answer_noise, wrong_pick_penalty=wrong_pick_penalty)
+        _, ck = best_question_cost(
+            state=state, posterior=post_new, candidate_goals=candidate_goals,
+            env=env, answer_noise=answer_noise, question_cost=question_cost,
+            asked_qnames=asked_qnames, wrong_pick_penalty=wrong_pick_penalty,
+        )
+        best_future = min(ca, ck)
+        cost_wait += p_a * best_future
+
+    return cost_wait
+
+
+def policy_cost_wait_ask(env, state, instruction_u, posterior, candidate_goals, principal_action_history,
+                         questions_asked, rng, beta, eps, answer_noise, question_cost=None,
+                         max_questions=None, entropy_gate=None, ask_window=None, asked_qnames=None,
+                         wrong_pick_penalty=None, principal_beta=None, principal_eps=None,
+                         assistant_beta=None, assistant_eps=None, **kwargs):
+    """
+    CostWaitAsk: three-way comparison of CostAct, CostAsk, and CostWait.
+    CostWait models the value of waiting one step for passive evidence.
+    """
+    question_cost = question_cost if question_cost is not None else config.QUESTION_COST
+    max_questions = max_questions if max_questions is not None else config.MAX_QUESTIONS
+    entropy_gate = entropy_gate if entropy_gate is not None else config.ENTROPY_GATE
+    ask_window = ask_window if ask_window is not None else config.ASK_WINDOW
+    wpp = wrong_pick_penalty if wrong_pick_penalty is not None else getattr(config, "WRONG_PICK_PENALTY", 0)
+    a_beta = assistant_beta if assistant_beta is not None else beta
+    a_eps = assistant_eps if assistant_eps is not None else eps
+    if not candidate_goals or not posterior:
+        return "stay", posterior
+    if questions_asked >= max_questions:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+    step_t = len(principal_action_history)
+    if step_t > ask_window:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+    ent = posterior_entropy(posterior)
+    if ent <= entropy_gate:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+
+    cost_act = CostAct(state, posterior, candidate_goals, env, answer_noise, wrong_pick_penalty=wpp)
+    best_q, cost_ask = best_question_cost(
+        state=state, posterior=posterior, candidate_goals=candidate_goals,
+        env=env, answer_noise=answer_noise, question_cost=question_cost,
+        asked_qnames=asked_qnames, wrong_pick_penalty=wpp,
+    )
+    cost_w = _cost_wait(
+        state, posterior, candidate_goals, env, answer_noise, question_cost,
+        asked_qnames, a_beta, a_eps, wrong_pick_penalty=wpp,
+    )
+
+    # Three-way: act, ask, or wait
+    best_cost = min(cost_act, cost_ask if best_q else float("inf"), cost_w)
+    if best_q is not None and cost_ask <= best_cost:
+        return ("ask", best_q), posterior
+    if cost_w <= best_cost and cost_w < cost_act:
+        # Wait = act toward MAP (take one step, observe principal, reconsider next turn)
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+    g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+    return assistant_task_action(env, state, g_star), posterior
+
+
+# ---------------------------------------------------------------------------
+# MismatchAwareAsk: online model criticism of the passive channel
+# ---------------------------------------------------------------------------
+
+def policy_mismatch_aware_ask(env, state, instruction_u, posterior, candidate_goals,
+                              principal_action_history, questions_asked, rng, beta, eps,
+                              answer_noise, question_cost=None, max_questions=None,
+                              entropy_gate=None, ask_window=None, asked_qnames=None,
+                              wrong_pick_penalty=None, principal_beta=None, principal_eps=None,
+                              assistant_beta=None, assistant_eps=None,
+                              current_steps=None, _surprise_state=None, **kwargs):
+    """
+    MismatchAwareAsk: monitors action surprise to detect passive-channel mismatch.
+    When cumulative surprise is high, asks more aggressively.
+
+    Uses a CUSUM-style accumulator:
+      S_t = max(0, gamma * S_{t-1} + (surprise_t - baseline))
+    When S_t > threshold, lowers the cost-ask threshold to encourage asking.
+    """
+    import math
+    from src.agents.principal import principal_action_probs
+
+    question_cost = question_cost if question_cost is not None else config.QUESTION_COST
+    max_questions = max_questions if max_questions is not None else config.MAX_QUESTIONS
+    entropy_gate = entropy_gate if entropy_gate is not None else config.ENTROPY_GATE
+    ask_window = ask_window if ask_window is not None else config.ASK_WINDOW
+    wpp = wrong_pick_penalty if wrong_pick_penalty is not None else getattr(config, "WRONG_PICK_PENALTY", 0)
+    a_beta = assistant_beta if assistant_beta is not None else beta
+    a_eps = assistant_eps if assistant_eps is not None else eps
+
+    if not candidate_goals or not posterior:
+        return "stay", posterior
+    if questions_asked >= max_questions:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+    step_t = len(principal_action_history)
+    if step_t > ask_window:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+    ent = posterior_entropy(posterior)
+    if ent <= entropy_gate:
+        g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+        return assistant_task_action(env, state, g_star), posterior
+
+    # --- Surprise accumulator ---
+    # Compute surprise from the most recent principal action
+    gamma = 0.90
+    baseline_surprise = 1.5  # expected surprise under matched model (≈ entropy of action dist)
+    surprise_threshold = 3.0  # trigger more aggressive asking
+
+    # Initialize or retrieve surprise state
+    if _surprise_state is None:
+        _surprise_state = {"S": 0.0}
+
+    if principal_action_history:
+        last_action = principal_action_history[-1]
+        # Predictive probability: P(a) = sum_g b(g) * P(a|s,g)
+        p_action = 0.0
+        for g in candidate_goals:
+            p_g = posterior.get(g, 0.0)
+            if p_g <= 0:
+                continue
+            probs = principal_action_probs(state, g, env, a_beta, a_eps)
+            p_action += p_g * probs.get(last_action, 1e-10)
+        p_action = max(p_action, 1e-10)
+        surprise = -math.log(p_action)
+        _surprise_state["S"] = max(0.0, gamma * _surprise_state["S"] + (surprise - baseline_surprise))
+
+    S_t = _surprise_state["S"]
+
+    # --- Ask decision with surprise-adjusted threshold ---
+    cost_act = CostAct(state, posterior, candidate_goals, env, answer_noise, wrong_pick_penalty=wpp)
+    best_q, cost_ask = best_question_cost(
+        state=state, posterior=posterior, candidate_goals=candidate_goals,
+        env=env, answer_noise=answer_noise, question_cost=question_cost,
+        asked_qnames=asked_qnames, wrong_pick_penalty=wpp,
+    )
+
+    # When surprise is high, make asking easier by discounting cost_ask
+    if S_t > surprise_threshold and best_q is not None:
+        # Force ask when model seems unreliable
+        return ("ask", best_q), posterior
+    elif best_q is not None and cost_ask < cost_act:
+        return ("ask", best_q), posterior
+
+    g_star = max(candidate_goals, key=lambda g: posterior.get(g, 0))
+    return assistant_task_action(env, state, g_star), posterior
