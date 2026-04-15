@@ -22,44 +22,53 @@ know which one. Every step, the assistant can either act — and
 hope it guessed right — or spend a little time asking a
 clarifying question. [pause]
 
+Importantly, asking is not free. In this benchmark, one question
+costs one extra turn plus a small penalty for interrupting the
+principal. So the assistant should ask only when that cost is
+worth paying. [pause]
+
 I compare three simple policies. **NeverAsk** never spends the
 question cost: it only watches the principal, updates its belief,
 and then commits. **AlwaysAsk** does the opposite: as long as it's
 still unsure, it keeps asking for clarification before acting.
 And **AskOrAct** is the main policy: at each step, it compares the
 expected cost of moving now against the expected cost of asking one
-question first, and picks the cheaper option. [pause]
+question first, and picks the cheaper option. In other words, it
+asks only if the answer is expected to save more than the question
+cost. [pause]
 
-## Slide 3 — Two Surprises (~95 seconds)
+## Slide 3 — Main Finding: Watching Can Hurt (~95 seconds)
 
-I want to show you two findings that surprised me. [pause]
+Before the result, one quick picture, on the left. The dial I
+sweep is called **K** --- the number of goals that fit the same
+instruction. At K equals two, two objects in the room match the
+word "gem", so the assistant has to pick between two candidates.
+At K equals six, six objects match, and it has six candidates to
+tell apart. Sweeping K is sweeping how much room there is for
+watching or asking to matter. [pause]
 
-First one, on the left. You'd think watching and asking are two
-independent sources of information, so their benefits should add
-up. They don't. They overlap — a lot. The practical lesson is
-that asking is most valuable exactly when watching fails you.
-When the principal's first move is ambiguous, one good question
-is worth more than any amount of further observation. [pause]
+Now the main finding, on the right. In the real world, the
+assistant's model of the principal is never perfect. When the
+two don't match, every extra step of passive watching doesn't
+just stop helping --- it actively makes things worse. The
+posterior drifts toward the wrong goal, and the more you watch,
+the more confident you become in the wrong answer. That's the
+sense in which more observation can hurt.
 
-Second one, on the right, is weirder. You'd also think a more
-rational principal is easier to help. After all, a rational
-principal takes sensible actions. But as the principal gets more
-rational, they stop varying — they just take the single best
-move, over and over. And that kills the assistant's ability to
-tell the goals apart. So assistability goes up, and then it comes
-back down. A smart assistant has to notice this and ask more
+## Slide 4 — A Surprise, and the Fix (~90 seconds)
+
+One more surprise, on the left. You'd think a more rational
+principal is easier to help. After all, a rational principal
+takes sensible actions. But as the principal gets more rational,
+they stop varying --- they just take the single best move, over
+and over. And that kills the assistant's ability to tell the
+goals apart. So assistability goes up, and then it comes back
+down. A smart assistant has to notice this and ask more
 questions exactly when the principal looks most confident.
+[pause]
 
-## Slide 4 — When Watching Hurts, and the Fix (~100 seconds)
-
-Now the main finding. In the real world, the assistant's model of
-the principal is never perfect. When the two don't match, every
-extra step of passive watching doesn't just stop helping — it
-actively makes things worse. The posterior drifts toward the
-wrong goal, and the more you watch, the more confident you
-become in the wrong answer. [pause]
-
-My first instinct was to fix this at the decision layer — ask
+Both findings point at the same bottleneck: posterior quality.
+My first instinct was to fix this at the decision layer --- ask
 sooner, ask more, tune the gates. None of that worked. The
 bottleneck isn't when to ask. It's that the assistant keeps
 trusting observations it shouldn't trust. [pause]
@@ -69,11 +78,14 @@ the assistant's own model, we turn down how much we believe it.
 When the model is matched, this does no harm. When the model is
 wrong, it recovers most of the loss. [pause]
 
-Three things to take away. One — watching and asking overlap,
-so don't stack them, use them where each one earns its keep.
-Two — a more rational partner is not always easier to help.
-And three — when your model of the world is wrong, fix what
-you believe, not when you speak. Thank you.
+Three things to take away. One --- watching and asking overlap,
+so don't stack them. Two --- a more rational partner is not
+always easier to help. And three --- when your model of the
+world is wrong, fix what you believe, not when you speak.
+
+## Slide 5 — Thank You (~5 seconds)
+
+Thank you --- happy to take questions.
 
 ## Likely questions and short answers
 - Why not AlwaysAsk? Asking has a cost; it overpays when

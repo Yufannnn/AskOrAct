@@ -51,7 +51,8 @@
       \begin{block}{Two ways to figure out a goal}
         \small
         \textbf{Watch} what the principal does, or\\
-        \textbf{ask} --- at a small cost.
+        \textbf{ask} --- each question costs\\
+        one turn + a small penalty.
       \end{block}
       \vspace{0.3em}
       \begin{block}{Three policies}
@@ -71,33 +72,32 @@
 \end{frame}
 
 % =============================================================
-\begin{frame}{Two Surprises}
+\begin{frame}{Main Finding: Watching Can Hurt}
   \begin{columns}[T,onlytextwidth]
     \column{0.48\textwidth}
       \centering
-      \includegraphics[width=\textwidth,height=3.8cm,keepaspectratio]{synergy_decomposition.png}\\[0.5em]
-      \small\textbf{Watching and asking \alert{overlap}.}\\[0.2em]
-      Their benefits don't add up ---\\
-      asking matters most when watching fails.
+      \includegraphics[width=\textwidth,height=3.8cm,keepaspectratio]{k_explainer.png}\\[0.5em]
+      \small\textbf{Same instruction, \alert{$K$} candidate goals.}\\[0.2em]
+      Higher $K$ $\Rightarrow$ more objects match\\
+      --- more to disambiguate.
+    \column{0.48\textwidth}
+      \centering
+      \includegraphics[width=\textwidth,height=3.8cm,keepaspectratio]{obs_hurts_mismatch.png}\\[0.4em]
+      \small\textbf{When the model is wrong,\\ watching makes things \alert{worse}.}\\[0.2em]
+      Every extra observation step\\
+      pulls the posterior further astray.
+  \end{columns}
+\end{frame}
+
+% =============================================================
+\begin{frame}{A Surprise --- and the Fix}
+  \begin{columns}[T,onlytextwidth]
     \column{0.48\textwidth}
       \centering
       \includegraphics[width=\textwidth,height=3.8cm,keepaspectratio]{beta_inverted_u.png}\\[0.5em]
       \small\textbf{A \alert{more rational} partner\\ is \alert{not always easier} to help.}\\[0.2em]
       Their actions stop varying ---\\
       so a smart assistant asks \emph{more}.
-  \end{columns}
-\end{frame}
-
-% =============================================================
-\begin{frame}{When Watching Hurts --- and the Fix}
-  \begin{columns}[T,onlytextwidth]
-    \column{0.48\textwidth}
-      \centering
-      \includegraphics[width=\textwidth,height=3.8cm,keepaspectratio]{obs_hurts_mismatch.png}\\[0.4em]
-      \small
-      When the assistant's model is wrong,\\
-      every extra step of watching\\
-      makes things \alert{worse}, not better.
     \column{0.48\textwidth}
       \begin{block}{The fix}
         \small
@@ -118,30 +118,14 @@
   \end{columns}
 \end{frame}
 
-\appendix
-
 % =============================================================
-\begin{frame}{Appendix A: Prior Work Comparison}
-  \footnotesize
+\begin{frame}[plain]
+  \vfill
   \centering
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabular}{lcccccc}
-    \toprule
-    Feature & \rotatebox{60}{CLIPS} & \rotatebox{60}{GRD} & \rotatebox{60}{PAGR} & \rotatebox{60}{ATD} & \rotatebox{60}{ShootFirst} & \rotatebox{60}{\textbf{Ours}} \\
-    \midrule
-    Action-based goal inference & \checkmark & $\circ$ & \checkmark & -- & -- & \checkmark \\
-    Explicit ask-or-act decision & -- & -- & $\circ$ & \checkmark & \checkmark & \checkmark \\
-    Typed questions with cost $c_q$ & -- & -- & -- & \checkmark & -- & \checkmark \\
-    Task completion, not just recognition & \checkmark & -- & -- & \checkmark & \checkmark & \checkmark \\
-    Controlled ambiguity-$K$ sweep & -- & -- & -- & -- & -- & \checkmark \\
-    Ground-truth task success & $\circ$ & -- & -- & -- & $\circ$ & \checkmark \\
-    \bottomrule
-  \end{tabular}
-
-  \vspace{0.6em}
-  \raggedright
-  \scriptsize
-  \checkmark\ present \quad $\circ$\ partial \quad -- absent
+  {\Huge\bfseries\color{AskBlue} Thank you}\\[1.2em]
+  {\Large Questions?}\\[2.0em]
+  {\small Zhu Yufan \quad---\quad A0238993J}
+  \vfill
 \end{frame}
 
 \end{document}
